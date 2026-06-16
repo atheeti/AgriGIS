@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgriGIS — Crop Health Dashboard</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="app-header">
+    <div class="header-brand">
+      <i class="fa-solid fa-seedling brand-icon"></i>
+      <div>
+        <span class="brand-name">AgriGIS</span>
+        <span class="brand-sub">Crop Health Intelligence</span>
+      </div>
+    </div>
+    <div class="header-status" id="headerStatus">
+      <i class="fa-solid fa-satellite-dish pulse"></i>
+      <span>Sentinel-2 Live</span>
+    </div>
+  </header>
+
+  <!-- ===== MAIN LAYOUT ===== -->
+  <div class="app-body">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+
+      <!-- Step 1 – Search -->
+      <div class="panel" id="panelSearch">
+        <div class="panel-header">
+          <span class="step-badge">1</span>
+          <i class="fa-solid fa-magnifying-glass-location"></i>
+          <span>Find Your Location</span>
+        </div>
+        <div class="panel-body">
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search village, district, state…" autocomplete="off" />
+            <button id="btnSearch" class="btn-icon"><i class="fa-solid fa-search"></i></button>
+          </div>
+          <div id="searchSuggestions" class="suggestions-list"></div>
+          <p class="hint"><i class="fa-solid fa-draw-polygon"></i> After locating, draw your plot on the map using the toolbar on the right side of the map.</p>
+        </div>
+      </div>
+
+      <!-- Step 2 – Registration -->
+      <div class="panel locked" id="panelRegister">
+        <div class="panel-header">
+          <span class="step-badge">2</span>
+          <i class="fa-solid fa-user-plus"></i>
+          <span>Farmer Registration</span>
+          <span class="lock-icon" id="lockRegister"><i class="fa-solid fa-lock"></i></span>
+        </div>
+        <div class="panel-body">
+          <form id="farmerForm" novalidate>
+            <div class="form-group">
+              <label for="farmerName"><i class="fa-solid fa-user"></i> Full Name</label>
+              <input type="text" id="farmerName" placeholder="e.g. Ramesh Kumar" required />
+              <span class="field-error" id="errName"></span>
+            </div>
+            <div class="form-group">
+              <label for="farmerPhone"><i class="fa-solid fa-phone"></i> Phone Number</label>
+              <input type="tel" id="farmerPhone" placeholder="10-digit mobile number" maxlength="10" required />
+              <span class="field-error" id="errPhone"></span>
+            </div>
+            <div class="form-group">
+              <label for="plotNumber"><i class="fa-solid fa-map-pin"></i> Plot Number</label>
+              <input type="text" id="plotNumber" placeholder="e.g. MH-KOL-001" required />
+              <span class="field-error" id="errPlot"></span>
+            </div>
+            <div class="form-group">
+              <label for="cropType"><i class="fa-solid fa-wheat-awn"></i> Crop Type</label>
+              <select id="cropType" required>
+                <option value="">— Select Crop —</option>
+                <option>Wheat</option>
+                <option>Rice / Paddy</option>
+                <option>Sugarcane</option>
+                <option>Cotton</option>
+                <option>Maize / Corn</option>
+                <option>Soybean</option>
+                <option>Groundnut</option>
+                <option>Mustard / Rapeseed</option>
+                <option>Chickpea / Gram</option>
+                <option>Sunflower</option>
+                <option>Potato</option>
+                <option>Tomato</option>
+                <option>Onion</option>
+                <option>Other Vegetables</option>
+                <option>Fruit Orchard</option>
+                <option>Other</option>
+              </select>
+              <span class="field-error" id="errCrop"></span>
+            </div>
+            <div class="plot-preview" id="plotPreview">
+              <i class="fa-solid fa-vector-square"></i>
+              <span id="plotStatus">No plot drawn yet</span>
+            </div>
+            <button type="submit" class="btn-primary" id="btnRegister">
+              <i class="fa-solid fa-check-circle"></i> Register & Continue
+            </button>
+          </form>
+          <div class="success-card hidden" id="registrationSuccess">
+            <i class="fa-solid fa-circle-check"></i>
+            <div>
+              <strong id="successName"></strong>
+              <p>Registration successful! Proceed to select an index.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 – Index Selection -->
+      <div class="panel locked" id="panelIndex">
+        <div class="panel-header">
+          <span class="step-badge">3</span>
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Select Index & Dates</span>
+          <span class="lock-icon" id="lockIndex"><i class="fa-solid fa-lock"></i></span>
+        </div>
+        <div class="panel-body">
+          <div class="form-group">
+            <label><i class="fa-solid fa-layer-group"></i> Vegetation Index</label>
+            <select id="indexSelect">
+              <option value="">— Choose Index —</option>
+              <option value="NDVI">NDVI — Normalized Difference Vegetation</option>
+              <option value="NDMI">NDMI — Normalized Difference Moisture</option>
+              <option value="EVI">EVI — Enhanced Vegetation</option>
+              <option value="MNDWI">MNDWI — Modified Normalized Diff Water</option>
+              <option value="SAVI">SAVI — Soil Adjusted Vegetation</option>
+              <option value="GNDVI">GNDVI — Green NDVI</option>
+              <option value="GCI">GCI — Green Chlorophyll Index</option>
+              <option value="SIPI">SIPI — Structure Insensitive Pigment</option>
+              <option value="NBR">NBR — Normalized Burn Ratio</option>
+              <option value="MGRVI">MGRVI — Modified Green Red Vegetation</option>
+              <option value="NDWI">NDWI — Normalized Difference Water</option>
+            </select>
+          </div>
+          <div class="index-description" id="indexDescription"></div>
+
+          <div class="date-row">
+            <div class="form-group">
+              <label><i class="fa-solid fa-calendar-days"></i> From</label>
+              <input type="date" id="dateFrom" />
+            </div>
+            <div class="form-group">
+              <label><i class="fa-solid fa-calendar-check"></i> To</label>
+              <input type="date" id="dateTo" />
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn-primary" id="btnGenerateMap">
+              <i class="fa-solid fa-map"></i> Generate Map
+            </button>
+            <button class="btn-secondary" id="btnGetStats">
+              <i class="fa-solid fa-chart-bar"></i> Get Statistics
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistics Panel -->
+      <div class="panel hidden" id="panelStats">
+        <div class="panel-header">
+          <i class="fa-solid fa-chart-bar"></i>
+          <span id="statsIndexTitle">Index Statistics</span>
+        </div>
+        <div class="panel-body">
+          <div class="value-highlight" id="valueHighlight">
+            <div class="value-number" id="valueMean">—</div>
+            <div class="value-label" id="valueLabel">Mean Value</div>
+            <div class="value-interpretation" id="valueInterpretation"></div>
+          </div>
+
+          <div class="stats-grid" id="statsGrid">
+            <div class="stat-item">
+              <span class="stat-label">Min</span>
+              <span class="stat-val" id="statMin">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Max</span>
+              <span class="stat-val" id="statMax">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Std Dev</span>
+              <span class="stat-val" id="statStd">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">P25</span>
+              <span class="stat-val" id="statP25">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Median</span>
+              <span class="stat-val" id="statP50">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">P75</span>
+              <span class="stat-val" id="statP75">—</span>
+            </div>
+          </div>
+
+          <div class="pixel-info" id="pixelInfo"></div>
+        </div>
+      </div>
+
+      <!-- Legend Panel -->
+      <div class="panel hidden" id="panelLegend">
+        <div class="panel-header">
+          <i class="fa-solid fa-palette"></i>
+          <span id="legendTitle">Index Legend</span>
+        </div>
+        <div class="panel-body">
+          <div class="legend-bar-container">
+            <div class="legend-gradient" id="legendGradient"></div>
+            <div class="legend-ticks" id="legendTicks"></div>
+          </div>
+          <div class="legend-desc" id="legendDesc"></div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ===== MAP ===== -->
+    <div class="map-container">
+      <div id="map"></div>
+
+      <!-- Map overlay loader -->
+      <div class="map-loader hidden" id="mapLoader">
+        <div class="loader-card">
+          <div class="spinner"></div>
+          <p id="loaderText">Fetching satellite data…</p>
+        </div>
+      </div>
+
+      <!-- Map toolbar info -->
+      <div class="map-info-bar" id="mapInfoBar">
+        <i class="fa-solid fa-circle-info"></i>
+        <span id="mapInfoText">Search a location, then draw your farm plot.</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== TOAST ===== -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ===== SCRIPTS ===== -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="js/indices.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
