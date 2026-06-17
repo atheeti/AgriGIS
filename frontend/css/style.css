@@ -145,6 +145,7 @@ html, body {
   border-radius: var(--radius);
   overflow: hidden;
   transition: all 0.3s ease;
+  flex-shrink: 0;
 }
 
 .panel.locked {
