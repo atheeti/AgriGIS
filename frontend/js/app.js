@@ -25,9 +25,9 @@ function setStep(step) {
   panels.forEach(({ id, step: s }) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.classList.remove("locked", "active");
+    el.classList.remove("locked", "active", "completed");
     if (s < step) {
-      // completed — keep unlocked but not active
+      el.classList.add("completed");
     } else if (s === step) {
       el.classList.add("active");
     } else {
@@ -214,7 +214,14 @@ async function handleRegister(e) {
     setStep(3);
 
     const indexPanel = document.getElementById("panelIndex");
-    setTimeout(() => indexPanel.scrollIntoView({ behavior: "smooth", block: "start" }), 400);
+    setTimeout(() => {
+      const sidebar = document.getElementById("sidebar");
+      if (sidebar) {
+        sidebar.scrollTo({ top: indexPanel.offsetTop - 12, behavior: "smooth" });
+      } else {
+        indexPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 400);
 
   } catch (err) {
     showToast("Connection error. Make sure the backend is running.", "error");
