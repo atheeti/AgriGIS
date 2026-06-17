@@ -211,7 +211,7 @@ async function handleRegister(e) {
     setStep(3);
 
     const indexPanel = document.getElementById("panelIndex");
-    setTimeout(() => indexPanel.scrollIntoView({ behavior: "smooth", block: "nearest" }), 300);
+    setTimeout(() => indexPanel.scrollIntoView({ behavior: "smooth", block: "start" }), 400);
 
   } catch (err) {
     showToast("Connection error. Make sure the backend is running.", "error");
