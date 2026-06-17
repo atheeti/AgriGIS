@@ -190,7 +190,10 @@ async function handleRegister(e) {
     const data = await res.json();
 
     if (res.status === 409) {
-      showError("errPlot", data.detail || "Plot number already exists");
+      const msg = data.detail || "Plot number already exists";
+      showError("errPlot", msg);
+      showToast(msg, "error");
+      document.getElementById("plotNumber").focus();
       return;
     }
     if (!res.ok) {
