@@ -335,7 +335,23 @@ ${xsSection}
     showToast('Rendering map snapshot…', 'info');
     updateScaleBar();
 
-    html2canvas(target, { useCORS: true, allowTaint: true, logging: false }).then(canvas => {
+    // Pin the capture to the container's own box (ignoring page scroll
+    // position), otherwise html2canvas offsets against window scroll
+    // and clips the bottom of the map out of the exported image.
+    const rect = target.getBoundingClientRect();
+    html2canvas(target, {
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+      width:  Math.ceil(rect.width),
+      height: Math.ceil(rect.height),
+      windowWidth:  document.documentElement.scrollWidth,
+      windowHeight: document.documentElement.scrollHeight,
+    }).then(canvas => {
       const r      = AppState.lastResult;
       const ctx    = canvas.getContext('2d');
       const bounds = AppState.map.getBounds();
