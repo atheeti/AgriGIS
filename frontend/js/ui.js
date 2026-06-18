@@ -339,6 +339,8 @@ ${xsSection}
     // position), otherwise html2canvas offsets against window scroll
     // and clips the bottom of the map out of the exported image.
     const rect = target.getBoundingClientRect();
+    const fullW = Math.ceil(rect.width);
+    const fullH = Math.ceil(rect.height);
     html2canvas(target, {
       useCORS: true,
       allowTaint: true,
@@ -347,10 +349,29 @@ ${xsSection}
       scrollY: 0,
       x: 0,
       y: 0,
-      width:  Math.ceil(rect.width),
-      height: Math.ceil(rect.height),
+      width:  fullW,
+      height: fullH,
       windowWidth:  document.documentElement.scrollWidth,
       windowHeight: document.documentElement.scrollHeight,
+      // #map-container is sized via flex (height: 100%) in the live page.
+      // html2canvas renders a detached clone in its own iframe, which has
+      // no flex parent — so a 100% height collapses there and clips
+      // everything pinned to the bottom (coord bar, legend, scale bar).
+      // Force explicit pixel dimensions on the clone so nothing collapses.
+      onclone: (clonedDoc) => {
+        const clonedTarget = clonedDoc.getElementById('map-container');
+        if (clonedTarget) {
+          clonedTarget.style.width    = `${fullW}px`;
+          clonedTarget.style.height   = `${fullH}px`;
+          clonedTarget.style.maxHeight = 'none';
+          clonedTarget.style.overflow = 'visible';
+        }
+        const clonedMap = clonedDoc.getElementById('map');
+        if (clonedMap) {
+          clonedMap.style.width  = `${fullW}px`;
+          clonedMap.style.height = `${fullH}px`;
+        }
+      },
     }).then(canvas => {
       const r      = AppState.lastResult;
       const ctx    = canvas.getContext('2d');
