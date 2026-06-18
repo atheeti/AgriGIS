@@ -33,19 +33,38 @@ SEARCH_WINDOW_DAYS = 90
 #  CLOUD MASKING
 # ══════════════════════════════════════════════════════════════
 
+CLOUD_PROB_THRESHOLD = 50  # s2cloudless probability (%) above which a pixel is masked as cloud
+
+# SCL (Scene Classification Layer) classes to mask out:
+#   3  = cloud shadow
+#   8  = cloud, medium probability
+#   9  = cloud, high probability
+#   10 = thin cirrus
+#   11 = snow / ice
+_SCL_MASKED_CLASSES = [3, 8, 9, 10, 11]
+
+
 def _mask_s2_clouds(image: ee.Image) -> ee.Image:
     """
-    Remove cloudy pixels using the Sentinel-2 QA60 bitmask.
-      Bit 10 = opaque clouds
-      Bit 11 = cirrus clouds
-    Pixels where either bit is set are masked out.
+    Remove cloudy / shadowed pixels using two complementary signals:
+      1. The Scene Classification Layer (SCL band, 20 m) — masks cloud
+         shadow, medium/high probability cloud, thin cirrus and snow.
+      2. The s2cloudless per-pixel cloud probability band (joined onto
+         each image as "s2cloudless" by _select_scene) — masks any
+         pixel whose cloud probability exceeds CLOUD_PROB_THRESHOLD.
+    Combining both is far more accurate than the coarse QA60 bitmask,
+    which only flags clouds at 60 m resolution and misses thin cirrus
+    and cloud shadow entirely.
     """
-    qa           = image.select("QA60")
-    cloud_mask   = qa.bitwiseAnd(1 << 10).eq(0)
-    cirrus_mask  = qa.bitwiseAnd(1 << 11).eq(0)
+    scl      = image.select("SCL")
+    scl_mask = scl.remap(_SCL_MASKED_CLASSES, [0] * len(_SCL_MASKED_CLASSES), 1).eq(1)
+
+    cloud_prob = ee.Image(image.get("s2cloudless")).select("probability")
+    prob_mask  = cloud_prob.lt(CLOUD_PROB_THRESHOLD)
+
     return (
         image
-        .updateMask(cloud_mask.And(cirrus_mask))
+        .updateMask(scl_mask.And(prob_mask))
         .copyProperties(image, ["system:time_start"])
     )
 
@@ -227,11 +246,30 @@ def _select_scene(geometry: "ee.Geometry", label: str = ""):
     start_str = start.strftime("%Y-%m-%d")
     end_str   = today.strftime("%Y-%m-%d")
 
-    collection = (
+    s2_sr = (
         ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
         .filterBounds(geometry)
         .filterDate(start_str, end_str)
         .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", MAX_CLOUD_PERCENT))
+    )
+
+    s2_cloud_prob = (
+        ee.ImageCollection("COPERNICUS/S2_CLOUD_PROBABILITY")
+        .filterBounds(geometry)
+        .filterDate(start_str, end_str)
+    )
+
+    # Attach the matching s2cloudless probability image to each SR scene
+    # (by shared system:index) so _mask_s2_clouds can read it via
+    # image.get("s2cloudless").
+    s2_joined = ee.Join.saveFirst("s2cloudless").apply(
+        primary=s2_sr,
+        secondary=s2_cloud_prob,
+        condition=ee.Filter.equals(leftField="system:index", rightField="system:index"),
+    )
+
+    collection = (
+        ee.ImageCollection(s2_joined)
         .map(_mask_s2_clouds)
         .sort("system:time_start", False)   # newest image first
     )
