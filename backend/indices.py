@@ -287,14 +287,17 @@ def _select_scene(geometry: "ee.Geometry", label: str = ""):
         )
 
     MIN_COVERAGE_FRACTION = 0.6
-    image_list  = collection.toList(min(image_count, 10))
-    image       = None
-    scene_date  = None
+    CANDIDATE_LIMIT        = 10
+    n_candidates = min(image_count, CANDIDATE_LIMIT)
+    candidate_list = collection.toList(n_candidates)
 
-    for i in range(image_list.size().getInfo()):
-        candidate = ee.Image(image_list.get(i))
+    # Compute AOI coverage + scene date for every candidate server-side,
+    # then pull all of it back in a single getInfo() round trip instead
+    # of one (or two) round trips per candidate.
+    def _candidate_info(img):
+        img = ee.Image(img)
         coverage = (
-            candidate.select(0).mask()
+            img.select(0).mask()
             .reduceRegion(
                 reducer=ee.Reducer.mean(),
                 geometry=geometry,
@@ -305,16 +308,30 @@ def _select_scene(geometry: "ee.Geometry", label: str = ""):
             .values()
             .get(0)
         )
-        coverage_frac = ee.Number(coverage).getInfo() or 0.0
+        return ee.Feature(None, {
+            "coverage": coverage,
+            "date":     img.date().format("dd MMM YYYY"),
+        })
+
+    candidate_info = (
+        ee.FeatureCollection(candidate_list.map(_candidate_info))
+        .getInfo()["features"]
+    )
+
+    image      = None
+    scene_date = None
+    for i, feat in enumerate(candidate_info):
+        props         = feat["properties"]
+        coverage_frac = props["coverage"] or 0.0
         if coverage_frac >= MIN_COVERAGE_FRACTION:
-            image      = candidate
-            scene_date = candidate.date().format("dd MMM YYYY").getInfo()
+            image      = ee.Image(candidate_list.get(i))
+            scene_date = props["date"]
             logger.info(f"[{label}] Using scene {i} — AOI coverage {coverage_frac:.0%}")
             break
 
     if image is None:
-        image      = collection.first()
-        scene_date = image.date().format("dd MMM YYYY").getInfo()
+        image      = ee.Image(candidate_list.get(0))
+        scene_date = candidate_info[0]["properties"]["date"]
         logger.warning(f"[{label}] No scene reached {MIN_COVERAGE_FRACTION:.0%} AOI coverage; using newest available.")
 
     return image, scene_date, image_count
