@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TerraGIS — Crop Health Intelligence</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+  <!-- ══ HEADER ══════════════════════════════════════════════ -->
+  <header id="app-header">
+
+    <!-- Brand -->
+    <div class="header-brand">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="15" fill="#0B1F3A" stroke="#1B4332" stroke-width="1"/>
+        <circle cx="16" cy="16" r="15" fill="url(#tns-globe)" opacity="0.25"/>
+        <path d="M9 19c2-3 4-5 7-6s5-1 7-3" stroke="#3FD9E8" stroke-width="1" opacity="0.5" fill="none"/>
+        <g transform="translate(16,16)">
+          <path d="M0 -9 L7 0 L0 9 L-7 0 Z" fill="none" stroke="#3FD9E8" stroke-width="1.4"/>
+          <path d="M0 -5 L4 0 L0 5 L-4 0 Z" fill="#3FD9E8"/>
+          <path d="M0 -9 L0 9" stroke="#3FD9E8" stroke-width="0.8" opacity="0.6"/>
+        </g>
+        <defs>
+          <radialGradient id="tns-globe" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#3FD9E8"/>
+            <stop offset="100%" stop-color="#0B1F3A"/>
+          </radialGradient>
+        </defs>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">TerraGIS</span>
+        <span class="brand-tag">Crop Health Intelligence</span>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div id="search-wrap">
+      <i class="fas fa-search search-icon"></i>
+      <input id="search-input" type="text"
+             placeholder="Search location, village or district…"
+             autocomplete="off"/>
+      <button id="search-clear" class="hidden" title="Clear search">
+        <i class="fas fa-times"></i>
+      </button>
+      <div id="search-results"></div>
+    </div>
+
+    <!-- Right controls -->
+    <div class="header-controls">
+
+      <!-- Latest Sentinel-2 scene date (filled after calculation) -->
+      <div class="sentinel-badge" id="sentinel-badge">
+        <i class="fas fa-satellite-dish"></i>
+        <span id="sentinel-date-display">No scene loaded</span>
+      </div>
+
+      <!-- Map layer toggle -->
+      <div class="tile-toggle">
+        <button class="tile-btn active" id="btn-satellite"
+                onclick="MapModule.setTile('satellite')">
+          <i class="fas fa-satellite"></i> Satellite
+        </button>
+        <button class="tile-btn" id="btn-osm"
+                onclick="MapModule.setTile('osm')">
+          <i class="fas fa-map"></i> Street
+        </button>
+      </div>
+
+      <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+    </div>
+  </header>
+
+  <!-- ══ BODY ════════════════════════════════════════════════ -->
+  <div id="app-body">
+
+    <!-- ═══ SIDEBAR ═════════════════════════════════════════ -->
+    <aside id="sidebar">
+
+      <!-- ── STEP 1: DRAW ──────────────────────────────────── -->
+      <div class="sb-section" id="sec-draw">
+        <div class="sb-label">
+          <i class="fas fa-draw-polygon"></i> Draw Your Plot
+          <span class="step-chip active" id="chip-1">Step 1</span>
+        </div>
+
+        <div class="draw-tools-grid">
+          <button class="draw-btn" id="btn-rect"
+                  onclick="DrawModule.activate('rect')">
+            <i class="fas fa-vector-square"></i><span>Rectangle</span>
+          </button>
+          <button class="draw-btn" id="btn-poly"
+                  onclick="DrawModule.activate('poly')">
+            <i class="fas fa-draw-polygon"></i><span>Polygon</span>
+          </button>
+          <button class="draw-btn" id="btn-circle"
+                  onclick="DrawModule.activate('circle')">
+            <i class="fas fa-circle-notch"></i><span>Circle</span>
+          </button>
+          <button class="draw-btn" id="btn-freehand"
+                  onclick="DrawModule.activate('freehand')">
+            <i class="fas fa-pen-nib"></i><span>Freehand</span>
+          </button>
+        </div>
+
+        <p class="draw-hint" id="draw-hint">
+          <i class="fas fa-info-circle"></i>
+          Select a tool, then draw on the map.
+        </p>
+
+        <!-- Revealed after drawing -->
+        <div id="plot-info-box" class="hidden">
+          <div class="plot-stats-row">
+            <div class="pstat">
+              <div class="pstat-label"><i class="fas fa-ruler-combined"></i> Area</div>
+              <div class="pstat-val" id="val-area">—</div>
+            </div>
+            <div class="pstat">
+              <div class="pstat-label"><i class="fas fa-route"></i> Perimeter</div>
+              <div class="pstat-val" id="val-perim">—</div>
+            </div>
+            <div class="pstat">
+              <div class="pstat-label"><i class="fas fa-project-diagram"></i> Points</div>
+              <div class="pstat-val" id="val-verts">—</div>
+            </div>
+          </div>
+          <div class="plot-action-row">
+            <button class="btn-secondary-sm" id="btn-edit-shape"
+                    onclick="UIModule.toggleEditShape()">
+              <i class="fas fa-vector-square"></i> Edit Shape
+            </button>
+            <button class="btn-danger-sm" onclick="DrawModule.clearAll()">
+              <i class="fas fa-trash-alt"></i> Clear Plot
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 2: SELECT INDEX ──────────────────────────── -->
+      <div class="sb-section hidden" id="sec-indices">
+        <div class="sb-label">
+          <i class="fas fa-leaf"></i> Select Index
+          <span class="step-chip" id="chip-2">Step 2</span>
+        </div>
+
+        <!-- 11 index buttons — built by ui.js -->
+        <div class="index-grid" id="index-grid"></div>
+
+        <button class="btn-calculate" id="btn-calculate"
+                onclick="ApiModule.calculate()">
+          <i class="fas fa-globe"></i> Run on Earth Engine
+        </button>
+        <p class="calc-note" id="calc-note">
+          Select an index above, then click Run.
+        </p>
+      </div>
+
+      <!-- ── STEP 3: RESULTS ───────────────────────────────── -->
+      <div class="sb-section hidden" id="sec-results">
+        <div class="sb-label">
+          <i class="fas fa-chart-bar"></i> Analysis Result
+          <span class="step-chip" id="chip-3">Step 3</span>
+        </div>
+
+        <!-- Result card with "soil-strip" signature element -->
+        <div class="result-card" id="result-card">
+          <div class="soil-strip" id="soil-strip"></div>
+          <div class="result-body">
+            <div class="result-top-row">
+              <div class="result-index-name" id="res-name">—</div>
+              <span class="result-status-badge" id="res-status">—</span>
+            </div>
+            <div class="result-full"    id="res-fullname"></div>
+            <div class="result-formula" id="res-formula"></div>
+
+            <!-- 4-stat grid: mean / min / max / std -->
+            <div class="stats-4grid">
+              <div class="stat4">
+                <div class="stat4-label">Mean</div>
+                <div class="stat4-val" id="res-mean">—</div>
+              </div>
+              <div class="stat4">
+                <div class="stat4-label">Min</div>
+                <div class="stat4-val" id="res-min">—</div>
+              </div>
+              <div class="stat4">
+                <div class="stat4-label">Max</div>
+                <div class="stat4-val" id="res-max">—</div>
+              </div>
+              <div class="stat4">
+                <div class="stat4-label">Std Dev</div>
+                <div class="stat4-val" id="res-std">—</div>
+              </div>
+            </div>
+
+            <!-- Scene date from backend -->
+            <div class="sentinel-info">
+              <i class="fas fa-satellite-dish"></i>
+              <span>Sentinel-2 scene: </span>
+              <span id="res-sentinel-date" class="sentinel-date-val">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart.js histogram -->
+        <div class="histogram-card">
+          <div class="sb-sublabel">
+            <i class="fas fa-chart-bar"></i> Value Distribution
+          </div>
+          <div class="histogram-canvas-wrap">
+            <canvas id="histogram-chart"></canvas>
+          </div>
+        </div>
+
+        <button class="btn-reset" onclick="UIModule.resetAnalysis()">
+          <i class="fas fa-undo"></i> Re-analyse Plot
+        </button>
+      </div>
+
+      <!-- ── LEGEND ────────────────────────────────────────── -->
+      <div class="sb-section hidden" id="sec-legend">
+        <div class="sb-label">
+          <i class="fas fa-palette"></i> Legend
+        </div>
+        <!-- Show / hide the classification layer -->
+        <div class="layer-toggle-row">
+          <label class="layer-toggle">
+            <input type="checkbox" id="layer-visible-toggle" checked
+                   onchange="UIModule.toggleLayerVisible(this.checked)"/>
+            <span><i class="fas fa-layer-group"></i> Show Classification Layer</span>
+          </label>
+        </div>
+
+        <div class="legend-bar-wrap">
+          <div class="legend-gradient-bar" id="legend-gradient-bar"></div>
+          <div class="legend-bar-labels"   id="legend-bar-labels"></div>
+        </div>
+        <div class="legend-class-list" id="legend-class-list"></div>
+
+        <!-- Classification map opacity -->
+        <div class="opacity-control">
+          <label class="sb-sublabel" for="opacity-slider">
+            <i class="fas fa-adjust"></i> Map Opacity
+            <span id="opacity-value">82%</span>
+          </label>
+          <input type="range" id="opacity-slider" class="opacity-slider"
+                 min="0" max="100" value="82"
+                 oninput="UIModule.setOverlayOpacity(this.value)"/>
+        </div>
+      </div>
+
+      <!-- ── CROSS SECTION ─────────────────────────────────── -->
+      <div class="sb-section hidden" id="sec-xsection">
+        <div class="sb-label">
+          <i class="fas fa-ruler"></i> Cross Section Analysis
+        </div>
+        <p class="draw-hint" id="xsection-hint">
+          <i class="fas fa-info-circle"></i>
+          Draw a line across the classified map to sample the index value of every pixel along it.
+        </p>
+        <div class="xsection-action-row">
+          <button class="btn-secondary-sm" id="btn-draw-xsection"
+                  onclick="UIModule.toggleCrossSectionDraw()">
+            <i class="fas fa-slash"></i> Draw Cross Section Line
+          </button>
+          <button class="btn-danger-sm hidden" id="btn-clear-xsection"
+                  onclick="UIModule.clearCrossSection()">
+            <i class="fas fa-trash-alt"></i> Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- ── EXPORT ────────────────────────────────────────── -->
+      <div class="sb-section hidden" id="sec-download">
+        <div class="sb-label">
+          <i class="fas fa-download"></i> Export
+        </div>
+        <button class="btn-download-pdf"
+                onclick="UIModule.downloadReport()">
+          <i class="fas fa-file-pdf"></i> Download PDF Report
+        </button>
+        <button class="btn-download-geo"
+                onclick="UIModule.downloadPlotJPG()">
+          <i class="fas fa-image"></i> Export Plot as JPG
+        </button>
+      </div>
+
+    </aside><!-- /sidebar -->
+
+    <!-- ═══ MAP ══════════════════════════════════════════════ -->
+    <div id="map-container">
+      <div id="map"></div>
+
+      <!-- North arrow (always points up — map has no rotation) -->
+      <div id="north-arrow" title="North">
+        <svg width="30" height="40" viewBox="0 0 30 40">
+          <path d="M15 2 L23 24 L15 19 L7 24 Z" fill="#52B788" stroke="#0B1F12" stroke-width="1"/>
+          <text x="15" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#F4F1EA" font-family="'Space Grotesk',sans-serif">N</text>
+        </svg>
+      </div>
+
+      <!-- Scale bar (bottom-left, used live + in JPG export layout) -->
+      <div id="map-scale-bar">
+        <div id="map-scale-line"></div>
+        <span id="map-scale-text">—</span>
+      </div>
+
+      <!-- Floating hint -->
+      <div id="map-hint">
+        <i class="fas fa-seedling"></i>
+        <span id="map-hint-text">Search a location and draw your plot to begin</span>
+      </div>
+
+      <!-- Bottom coordinate / zoom bar -->
+      <div id="coord-bar">
+        <span>
+          <i class="fas fa-crosshairs"></i>
+          <span id="coord-display">Move mouse over map</span>
+        </span>
+        <span>
+          <i class="fas fa-search-plus"></i>
+          Zoom: <span id="zoom-display">5</span>
+        </span>
+      </div>
+    </div>
+
+  </div><!-- /app-body -->
+
+  <!-- ═══ CROSS SECTION PANEL (below map, full width) ═══════ -->
+  <div id="xsection-panel" class="hidden">
+    <div class="xs-panel-header">
+      <div class="xs-panel-title">
+        <i class="fas fa-chart-line"></i> Cross Section — Pixel Values Along Line
+      </div>
+      <button class="xs-panel-close" onclick="UIModule.clearCrossSection()" title="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="xs-panel-body">
+      <div class="xs-chart-wrap">
+        <canvas id="xsection-chart"></canvas>
+      </div>
+      <div class="xs-table-wrap">
+        <table class="xs-table">
+          <thead><tr><th>#</th><th>Distance (m)</th><th>Value</th><th>Lat</th><th>Lon</th></tr></thead>
+          <tbody id="xsection-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ LOADING OVERLAY ══════════════════════════════════════ -->
+  <div id="loading-overlay">
+    <div class="loading-card">
+      <div class="loading-icon"><i class="fas fa-globe fa-spin"></i></div>
+      <div class="loading-title" id="loading-title">Processing…</div>
+      <div class="loading-sub"   id="loading-sub">Please wait</div>
+      <div class="loading-bar-wrap">
+        <div class="loading-bar-fill" id="loading-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TOAST CONTAINER ══════════════════════════════════════ -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <!-- ══ LIBRARIES ════════════════════════════════════════════ -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- App scripts (order matters) -->
+  <script src="js/config.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/draw.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+
+</body>
+</html>
