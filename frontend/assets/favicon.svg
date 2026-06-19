@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
+  <circle cx="16" cy="16" r="15.5" fill="#1A2B7A"/>
+  <circle cx="16" cy="16" r="15.5" fill="url(#tns-globe)" opacity="0.35"/>
+  <g fill="#15206B" opacity="0.55">
+    <path d="M4 10c2-2 5-3 7-1 1 1-1 3-3 3-2 1-5 0-4-2Z"/>
+    <path d="M9 19c1-2 4-3 6-2 2 1 1 4-1 5-3 1-6-1-5-3Z"/>
+    <path d="M19 6c2-1 5 0 6 2 1 1-2 3-4 2-2 0-4-3-2-4Z"/>
+    <path d="M21 16c2-1 5 0 6 2 1 2-1 4-3 3-2 0-5-3-3-5Z"/>
+    <path d="M14 23c2-1 4 0 5 2 0 1-2 2-4 1-1 0-2-2-1-3Z"/>
+  </g>
+  <g transform="translate(16,16)">
+    <path d="M0 -10 L9 0 L0 10 L-9 0 Z" fill="none" stroke="#3FD9E8" stroke-width="1.6"/>
+    <path d="M0 -10 L0 -3" stroke="#3FD9E8" stroke-width="1.6"/>
+    <path d="M0 3 L0 10" stroke="#3FD9E8" stroke-width="1.6"/>
+    <path d="M-3 -7 L0 -10 L3 -7" fill="none" stroke="#3FD9E8" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M-3 7 L0 10 L3 7" fill="none" stroke="#3FD9E8" stroke-width="1.6" stroke-linecap="round"/>
+  </g>
+  <text x="16" y="19" text-anchor="middle" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="7.5" fill="#F4F1EA">TNS</text>
+  <defs>
+    <radialGradient id="tns-globe" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3FD9E8"/>
+      <stop offset="100%" stop-color="#1A2B7A"/>
+    </radialGradient>
+  </defs>
+</svg>
