@@ -522,27 +522,20 @@ ${xsSection}
     document.getElementById('btn-clear-xsection').classList.add('hidden');
     document.getElementById('xsection-panel').classList.add('hidden');
     document.getElementById('xsection-table-body').innerHTML = '';
+    document.getElementById('xs-table-wrap').classList.add('hidden');
+    document.getElementById('xs-stats-menu').classList.add('hidden');
     if (AppState.xsChart) { AppState.xsChart.destroy(); AppState.xsChart = null; }
     AppState.lastCrossSection = null;
+    AppState.xsZoomLevel = 0;
   }
 
-  function showCrossSectionChart(cfg, points) {
+  // Renders the line chart only, for the given (possibly windowed)
+  // subset of points. Table population is handled separately so the
+  // table can stay hidden until the user requests an export.
+  function _renderXsChart(cfg, points) {
     const canvas = document.getElementById('xsection-chart');
     if (!canvas || !points?.length) return;
     if (AppState.xsChart) { AppState.xsChart.destroy(); AppState.xsChart = null; }
-    document.getElementById('xsection-panel').classList.remove('hidden');
-
-    // Per-pixel value table — shown separately below the chart so the
-    // chart itself doesn't get congested with too many data labels.
-    const tbody = document.getElementById('xsection-table-body');
-    tbody.innerHTML = points.map((p, i) => `
-      <tr>
-        <td>${i + 1}</td>
-        <td>${p.distance.toFixed(1)}</td>
-        <td>${p.value == null ? '—' : p.value.toFixed(4)}</td>
-        <td>${p.lat.toFixed(5)}</td>
-        <td>${p.lon.toFixed(5)}</td>
-      </tr>`).join('');
 
     const [dmin, dmax] = cfg.disp;
     const dots = points.map(p => {
@@ -585,6 +578,115 @@ ${xsSection}
     });
   }
 
+  function showCrossSectionChart(cfg, points) {
+    if (!points?.length) return;
+    AppState.lastCrossSection = AppState.lastCrossSection || {};
+    AppState.lastCrossSection.cfg    = cfg;
+    AppState.lastCrossSection.points = points;
+    AppState.xsZoomLevel = 0;
+
+    document.getElementById('xsection-panel').classList.remove('hidden');
+    document.getElementById('xs-table-wrap').classList.add('hidden');
+    document.getElementById('xsection-table-body').innerHTML = '';
+
+    _renderXsChart(cfg, points);
+  }
+
+  // ── ZOOM ────────────────────────────────────────────────────
+  // direction: 1 = zoom in, -1 = zoom out, 0 = reset to full extent.
+  // Implemented as windowing over the original point array (centred),
+  // since the chart's x-axis is a category scale of distance labels.
+  const XS_MIN_WINDOW_FRACTION = 0.12;
+  const XS_ZOOM_STEP           = 1.4;
+
+  function zoomCrossSection(direction) {
+    const xs = AppState.lastCrossSection;
+    if (!xs?.points?.length) return;
+
+    if (direction === 0) {
+      AppState.xsZoomLevel = 0;
+    } else {
+      AppState.xsZoomLevel = (AppState.xsZoomLevel || 0) + direction;
+      if (AppState.xsZoomLevel < 0) AppState.xsZoomLevel = 0;
+    }
+
+    const fraction = Math.max(XS_MIN_WINDOW_FRACTION, Math.pow(1 / XS_ZOOM_STEP, AppState.xsZoomLevel));
+    const total    = xs.points.length;
+    const winSize  = Math.max(2, Math.round(total * fraction));
+
+    const center = Math.floor(total / 2);
+    let start = center - Math.floor(winSize / 2);
+    let end   = start + winSize;
+    if (start < 0) { end -= start; start = 0; }
+    if (end > total) { start -= (end - total); end = total; }
+    start = Math.max(0, start);
+
+    _renderXsChart(xs.cfg, xs.points.slice(start, end));
+  }
+
+  // ── STATISTICS DROPDOWN / EXPORT ───────────────────────────
+  function toggleStatsMenu() {
+    document.getElementById('xs-stats-menu').classList.toggle('hidden');
+  }
+
+  document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('xs-stats-dropdown');
+    const menu     = document.getElementById('xs-stats-menu');
+    if (!dropdown || !menu || menu.classList.contains('hidden')) return;
+    if (!dropdown.contains(e.target)) menu.classList.add('hidden');
+  });
+
+  function _populateXsTable(points) {
+    const tbody = document.getElementById('xsection-table-body');
+    tbody.innerHTML = points.map((p, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${p.distance.toFixed(1)}</td>
+        <td>${p.value == null ? '—' : p.value.toFixed(4)}</td>
+        <td>${p.lat.toFixed(5)}</td>
+        <td>${p.lon.toFixed(5)}</td>
+      </tr>`).join('');
+    document.getElementById('xs-table-wrap').classList.remove('hidden');
+  }
+
+  function exportCrossSection(format) {
+    const xs = AppState.lastCrossSection;
+    if (!xs?.points?.length) { showToast('Run a cross section first', 'error'); return; }
+
+    document.getElementById('xs-stats-menu').classList.add('hidden');
+    _populateXsTable(xs.points);
+
+    const rows = xs.points.map((p, i) => ({
+      '#':            i + 1,
+      'Distance (m)': Number(p.distance.toFixed(1)),
+      'Value':        p.value == null ? '' : Number(p.value.toFixed(4)),
+      'Lat':          Number(p.lat.toFixed(5)),
+      'Lon':          Number(p.lon.toFixed(5)),
+    }));
+
+    const filename = `terragis_cross_section_${Date.now()}`;
+
+    if (format === 'csv') {
+      const header = Object.keys(rows[0]).join(',');
+      const body   = rows.map(r => Object.values(r).join(',')).join('\n');
+      const blob   = new Blob([`${header}\n${body}`], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${filename}.csv`;
+      a.click();
+    } else if (typeof XLSX === 'undefined') {
+      showToast('Spreadsheet export library failed to load', 'error');
+      return;
+    } else {
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      const wb    = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, 'Cross Section');
+      XLSX.writeFile(wb, `${filename}.${format}`, { bookType: format });
+    }
+
+    showToast(`Pixel values exported as .${format}`, 'success');
+  }
+
   // ── INIT ──────────────────────────────────────────────────
   function init() {
     buildIndexButtons();
@@ -600,6 +702,7 @@ ${xsSection}
     downloadReport, downloadPlotJPG, updateScaleBar,
     toggleEditShape, setOverlayOpacity, toggleLayerVisible,
     toggleCrossSectionDraw, onCrossSectionLineDrawn, clearCrossSection, showCrossSectionChart,
+    zoomCrossSection, toggleStatsMenu, exportCrossSection,
   };
 })();
 
