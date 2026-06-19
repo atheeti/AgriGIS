@@ -26,6 +26,7 @@ const DrawModule = (() => {
   let _xsHandler   = null;
   let _xsLineLayer = null;
   let _xsActive    = false;
+  let _xsMarker    = null;
 
   // ── INIT ─────────────────────────────────────────────────
   function init() {
@@ -39,7 +40,7 @@ const DrawModule = (() => {
       poly:   new L.Draw.Polygon  (AppState.map, { shapeOptions: DRAW_STYLE, showArea: true }),
       circle: new L.Draw.Circle   (AppState.map, { shapeOptions: DRAW_STYLE }),
     };
-    _xsHandler = new L.Draw.Polyline(AppState.map, { shapeOptions: { color: '#FFD60A', weight: 3 } });
+    _xsHandler = new L.Draw.Polyline(AppState.map, { shapeOptions: { color: '#FF3B30', weight: 3 } });
 
     AppState.map.on(L.Draw.Event.CREATED, (e) => {
       if (_xsActive) {
@@ -80,22 +81,45 @@ const DrawModule = (() => {
     return _editing;
   }
 
+  // ── AREA UNIT CONVERSION ──────────────────────────────────
+  const AREA_UNITS = {
+    ha:    { label: 'ha',     toUnit: m2 => m2 / 10000 },
+    sqkm:  { label: 'km²',    toUnit: m2 => m2 / 1e6 },
+    acre:  { label: 'acres',  toUnit: m2 => m2 / 4046.8564224 },
+    sqyd:  { label: 'yd²',    toUnit: m2 => m2 * 1.19599005 },
+  };
+
+  function _formatArea(areaM) {
+    AppState.lastAreaM2 = areaM;
+    const sel  = document.getElementById('area-unit-select');
+    const unit = AREA_UNITS[sel?.value] || AREA_UNITS.ha;
+    return unit.toUnit(areaM).toFixed(2) + ' ' + unit.label;
+  }
+
+  // Re-renders the area text using the currently stored raw area
+  // (called when the unit dropdown selection changes).
+  function refreshAreaDisplay() {
+    if (AppState.lastAreaM2 == null) return;
+    document.getElementById('val-area').textContent = _formatArea(AppState.lastAreaM2);
+  }
+
   function _refreshPlotStats() {
     const layer = AppState.drawnLayer;
     if (!layer) return;
-    let areaText = '—', perimText = '—', vertCount = '—';
+    let areaM = 0, areaText = '—', perimText = '—', vertCount = '—';
     if (layer instanceof L.Circle) {
       const r  = layer.getRadius();
-      areaText  = (Math.PI * r * r / 10000).toFixed(2) + ' ha';
+      areaM     = Math.PI * r * r;
+      areaText  = _formatArea(areaM);
       perimText = (2 * Math.PI * r / 1000).toFixed(3) + ' km';
       vertCount = 'circle';
     } else {
       try {
-        const gj    = layer.toGeoJSON();
-        const areaM = turf.area(gj);
-        areaText    = areaM >= 10000 ? (areaM / 10000).toFixed(2) + ' ha' : areaM.toFixed(0) + ' m²';
-        perimText   = turf.length(turf.polygonToLine(gj), { units: 'kilometers' }).toFixed(3) + ' km';
-        vertCount   = layer.getLatLngs()[0]?.length ?? '—';
+        const gj  = layer.toGeoJSON();
+        areaM     = turf.area(gj);
+        areaText  = _formatArea(areaM);
+        perimText = turf.length(turf.polygonToLine(gj), { units: 'kilometers' }).toFixed(3) + ' km';
+        vertCount = layer.getLatLngs()[0]?.length ?? '—';
       } catch (e) { console.warn('[DrawModule] Turf error:', e.message); }
     }
     document.getElementById('val-area').textContent  = areaText;
@@ -177,19 +201,20 @@ const DrawModule = (() => {
     AppState.drawnLayer = layer;
 
     // ── Area & Perimeter via Turf.js ──────────────────────
-    let areaText = '—', perimText = '—', vertCount = '—';
+    let areaM = 0, areaText = '—', perimText = '—', vertCount = '—';
     if (layer instanceof L.Circle) {
       const r  = layer.getRadius();
-      areaText  = (Math.PI * r * r / 10000).toFixed(2) + ' ha';
+      areaM     = Math.PI * r * r;
+      areaText  = _formatArea(areaM);
       perimText = (2 * Math.PI * r / 1000).toFixed(3) + ' km';
       vertCount = 'circle';
     } else {
       try {
-        const gj    = layer.toGeoJSON();
-        const areaM = turf.area(gj);
-        areaText    = areaM >= 10000 ? (areaM / 10000).toFixed(2) + ' ha' : areaM.toFixed(0) + ' m²';
-        perimText   = turf.length(turf.polygonToLine(gj), { units: 'kilometers' }).toFixed(3) + ' km';
-        vertCount   = layer.getLatLngs()[0]?.length ?? '—';
+        const gj  = layer.toGeoJSON();
+        areaM     = turf.area(gj);
+        areaText  = _formatArea(areaM);
+        perimText = turf.length(turf.polygonToLine(gj), { units: 'kilometers' }).toFixed(3) + ' km';
+        vertCount = layer.getLatLngs()[0]?.length ?? '—';
       } catch (e) { console.warn('[DrawModule] Turf error:', e.message); }
     }
 
@@ -219,6 +244,7 @@ const DrawModule = (() => {
     _drawnItems?.clearLayers();
     if (AppState.overlayLayer) { AppState.map.removeLayer(AppState.overlayLayer); AppState.overlayLayer = null; }
     AppState.drawnLayer = AppState.selectedIndex = AppState.lastResult = null;
+    AppState.lastAreaM2 = null;
 
     document.getElementById('val-area').textContent  = '—';
     document.getElementById('val-perim').textContent = '—';
@@ -293,11 +319,33 @@ const DrawModule = (() => {
   }
   function clearCrossSectionLine() {
     if (_xsLineLayer) { AppState.map.removeLayer(_xsLineLayer); _xsLineLayer = null; }
+    hideXsectionMarker();
   }
   // Returns [[lon, lat], ...] for the drawn cross-section line, or null.
   function getLineCoords() {
     if (!_xsLineLayer) return null;
     return _xsLineLayer.toGeoJSON().geometry.coordinates;
+  }
+
+  // ── CROSS-SECTION SCRUB MARKER ────────────────────────────
+  // Moves a marker along the drawn red line to mirror whichever
+  // sample point the user is hovering/scrolling over in the chart.
+  function showXsectionMarker(lat, lng) {
+    if (lat == null || lng == null) { hideXsectionMarker(); return; }
+    if (!_xsMarker) {
+      _xsMarker = L.circleMarker([lat, lng], {
+        radius: 7,
+        color: '#FFFFFF',
+        weight: 2,
+        fillColor: '#FF3B30',
+        fillOpacity: 1,
+      }).addTo(AppState.map);
+    } else {
+      _xsMarker.setLatLng([lat, lng]);
+    }
+  }
+  function hideXsectionMarker() {
+    if (_xsMarker) { AppState.map.removeLayer(_xsMarker); _xsMarker = null; }
   }
 
   // ── GEOMETRY EXPORT ──────────────────────────────────────
@@ -318,6 +366,7 @@ const DrawModule = (() => {
     init, activate, clearAll, renderGEETileOverlay, getGeoJSONGeometry,
     toggleEdit, setOverlayOpacity, setOverlayVisible,
     startCrossSectionDraw, stopCrossSectionDraw, clearCrossSectionLine, getLineCoords,
+    showXsectionMarker, hideXsectionMarker, refreshAreaDisplay,
   };
 })();
 

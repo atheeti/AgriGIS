@@ -133,7 +133,16 @@
         <div id="plot-info-box" class="hidden">
           <div class="plot-stats-row">
             <div class="pstat">
-              <div class="pstat-label"><i class="fas fa-ruler-combined"></i> Area</div>
+              <div class="pstat-label">
+                <i class="fas fa-ruler-combined"></i> Area
+                <select id="area-unit-select" class="area-unit-select"
+                        onchange="DrawModule.refreshAreaDisplay()">
+                  <option value="ha">ha</option>
+                  <option value="sqkm">sq. km</option>
+                  <option value="acre">acres</option>
+                  <option value="sqyd">sq. yard</option>
+                </select>
+              </div>
               <div class="pstat-val" id="val-area">—</div>
             </div>
             <div class="pstat">
@@ -223,16 +232,6 @@
           </div>
         </div>
 
-        <!-- Chart.js histogram -->
-        <div class="histogram-card">
-          <div class="sb-sublabel">
-            <i class="fas fa-chart-bar"></i> Value Distribution
-          </div>
-          <div class="histogram-canvas-wrap">
-            <canvas id="histogram-chart"></canvas>
-          </div>
-        </div>
-
         <button class="btn-reset" onclick="UIModule.resetAnalysis()">
           <i class="fas fa-undo"></i> Re-analyse Plot
         </button>
@@ -267,6 +266,16 @@
           <input type="range" id="opacity-slider" class="opacity-slider"
                  min="0" max="100" value="82"
                  oninput="UIModule.setOverlayOpacity(this.value)"/>
+        </div>
+
+        <!-- Chart.js histogram (moved below the legend classification) -->
+        <div class="histogram-card">
+          <div class="sb-sublabel">
+            <i class="fas fa-chart-bar"></i> Value Distribution
+          </div>
+          <div class="histogram-canvas-wrap">
+            <canvas id="histogram-chart"></canvas>
+          </div>
         </div>
       </div>
 

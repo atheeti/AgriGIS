@@ -562,6 +562,16 @@ ${xsSection}
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        // Move a marker along the drawn cross-section line as the user
+        // hovers/scrolls through the chart's sampled points.
+        onHover: (evt, activeElements) => {
+          if (typeof DrawModule === 'undefined') return;
+          const el = activeElements?.[0];
+          if (!el) { DrawModule.hideXsectionMarker(); return; }
+          const p = points[el.index];
+          if (!p) { DrawModule.hideXsectionMarker(); return; }
+          DrawModule.showXsectionMarker(p.lat, p.lon);
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -576,6 +586,8 @@ ${xsSection}
         },
       },
     });
+
+    canvas.onmouseleave = () => { if (typeof DrawModule !== 'undefined') DrawModule.hideXsectionMarker(); };
   }
 
   function showCrossSectionChart(cfg, points) {

@@ -136,95 +136,101 @@ def _ndwi(img):
 # ══════════════════════════════════════════════════════════════
 
 INDEX_CONFIGS: dict = {
+    # NOTE: "class_breaks" / "class_palette" must mirror the
+    # corresponding `classes` array in frontend/js/config.js exactly.
+    # The rendered map tile is built from a *discrete* classification
+    # of these breakpoints (see _build_classified_vis below) rather
+    # than a smooth gradient — a continuous gradient previously let
+    # low-end classes (e.g. NDVI water, which sits at the very start
+    # of the colour ramp) visually blend into the neighbouring class
+    # (bare soil), making them indistinguishable on the map even
+    # though the legend listed them as different colours.
     "NDVI": {
         "formula":    _ndvi,
         "disp":       (-0.2, 1.0),
-        "vis_params": {
-            "min": -0.2, "max": 1.0,
-            "palette": ["d73027","f46d43","fdae61","fee08b","ffffbf","d9ef8b","a6d96a","66bd63","1a9850"],
-        },
+        "class_breaks":  [0, 0.2, 0.4, 0.6, 0.8],
+        "class_palette": ["4575b4", "d73027", "fdae61", "fee08b", "66bd63", "1a9850"],
     },
     "NDMI": {
         "formula":    _ndmi,
         "disp":       (-0.5, 0.6),
-        "vis_params": {
-            "min": -0.5, "max": 0.6,
-            "palette": ["8c510a","bf812d","dfc27d","f5f5f5","c7eae5","80cdc1","35978f","01665e"],
-        },
+        "class_breaks":  [-0.3, 0, 0.2, 0.4],
+        "class_palette": ["8c510a", "dfc27d", "c7eae5", "35978f", "01665e"],
     },
     "EVI": {
         "formula":    _evi,
         "disp":       (0.0, 0.8),
-        "vis_params": {
-            "min": 0.0, "max": 0.8,
-            "palette": ["ffffe5","f7fcb9","d9f0a3","addd8e","78c679","41ab5d","238443","006837","004529"],
-        },
+        "class_breaks":  [0.1, 0.3, 0.5, 0.7],
+        "class_palette": ["ffffe5", "d9f0a3", "78c679", "238443", "004529"],
     },
     "MDWI": {
         "formula":    _mdwi,
         "disp":       (-0.5, 0.5),
-        "vis_params": {
-            "min": -0.5, "max": 0.5,
-            "palette": ["d01c1f","f46d43","fdae61","ffffbf","abd9e9","74add1","4575b4","313695"],
-        },
+        "class_breaks":  [-0.3, 0, 0.2],
+        "class_palette": ["d01c1f", "fdae61", "abd9e9", "313695"],
     },
     "SAVI": {
         "formula":    _savi,
         "disp":       (-0.2, 1.0),
-        "vis_params": {
-            "min": -0.2, "max": 1.0,
-            "palette": ["8b4513","cd853f","daa520","ffd700","9acd32","32cd32","228b22","006400"],
-        },
+        "class_breaks":  [0.1, 0.3, 0.5, 0.7],
+        "class_palette": ["cd853f", "daa520", "9acd32", "228b22", "006400"],
     },
     "GNDVI": {
         "formula":    _gndvi,
         "disp":       (0.0, 0.9),
-        "vis_params": {
-            "min": 0.0, "max": 0.9,
-            "palette": ["ffffcc","d9f0a3","addd8e","78c679","41ab5d","238443","006837"],
-        },
+        "class_breaks":  [0.2, 0.4, 0.6],
+        "class_palette": ["ffffcc", "addd8e", "78c679", "006837"],
     },
     "GCI": {
         "formula":    _gci,
         "disp":       (0.0, 10.0),
-        "vis_params": {
-            "min": 0.0, "max": 10.0,
-            "palette": ["ffffe5","f7fcb9","d9f0a3","addd8e","78c679","41ab5d","238443","006837"],
-        },
+        "class_breaks":  [1, 3, 5, 7],
+        "class_palette": ["ffffe5", "d9f0a3", "78c679", "238443", "006837"],
     },
     "SIPI": {
         "formula":    _sipi,
         "disp":       (0.8, 1.8),
-        "vis_params": {
-            "min": 0.8, "max": 1.8,
-            "palette": ["9e0142","d53e4f","f46d43","fdae61","ffffbf","e6f598","abdda4","66c2a5","3288bd"],
-        },
+        "class_breaks":  [1.0, 1.3, 1.6],
+        "class_palette": ["d53e4f", "f46d43", "e6f598", "3288bd"],
     },
     "NBR": {
         "formula":    _nbr,
         "disp":       (-0.5, 1.0),
-        "vis_params": {
-            "min": -0.5, "max": 1.0,
-            "palette": ["7b2d00","c0392b","e67e22","f1c40f","2ecc71","27ae60","1a5276"],
-        },
+        "class_breaks":  [-0.1, 0.1, 0.3, 0.6],
+        "class_palette": ["c0392b", "e67e22", "f1c40f", "2ecc71", "1a5276"],
     },
     "MGRVI": {
         "formula":    _mgrvi,
         "disp":       (-0.3, 0.8),
-        "vis_params": {
-            "min": -0.3, "max": 0.8,
-            "palette": ["a50026","d73027","fdae61","ffffbf","a6d96a","1a9850"],
-        },
+        "class_breaks":  [0, 0.2, 0.4],
+        "class_palette": ["d73027", "fdae61", "a6d96a", "1a9850"],
     },
     "NDWI": {
         "formula":    _ndwi,
         "disp":       (-0.5, 0.5),
-        "vis_params": {
-            "min": -0.5, "max": 0.5,
-            "palette": ["d7191c","fdae61","ffffbf","abd9e9","2c7bb6","054e9e"],
-        },
+        "class_breaks":  [-0.3, 0, 0.2, 0.5],
+        "class_palette": ["d7191c", "fdae61", "abd9e9", "2c7bb6", "054e9e"],
     },
 }
+
+
+def _build_classified_vis(index_image: "ee.Image", cfg: dict) -> "ee.Image":
+    """
+    Buckets the continuous index image into the same discrete classes
+    shown in the frontend legend, then returns a renderable image whose
+    palette is keyed 1:1 to those class colours. Using a discrete
+    classification (instead of a continuous gradient) guarantees the
+    rendered map tile always agrees with the legend — no two classes
+    can blur into each other at a shared boundary.
+    """
+    breaks  = cfg["class_breaks"]
+    palette = cfg["class_palette"]
+
+    class_id = ee.Image.constant(0)
+    for b in breaks:
+        class_id = class_id.add(index_image.gte(b))
+
+    return class_id.visualize(min=0, max=len(palette) - 1, palette=palette)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -413,8 +419,8 @@ def calculate(
         for b in raw_bins
     ]
 
-    # ── Map tile URL ───────────────────────────────────────────
-    map_id   = index_image_vis.getMapId(cfg["vis_params"])
+    # ── Map tile URL (discrete classification matching the legend) ─
+    map_id   = _build_classified_vis(index_image_vis, cfg).getMapId()
     tile_url = map_id["tile_fetcher"].url_format
     # url_format already contains {z}/{x}/{y} placeholders — ready for Leaflet
 
