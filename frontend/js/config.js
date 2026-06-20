@@ -36,9 +36,10 @@ const INDICES = {
     color:    '#4CAF50',
     disp:     [-0.2, 1.0],
     stops:    ['#d73027','#f46d43','#fdae61','#fee08b','#ffffbf','#d9ef8b','#a6d96a','#66bd63','#1a9850'],
-    classify: v => v<0?'Water / Non-Veg':v<0.2?'Bare Soil':v<0.4?'Sparse Vegetation':v<0.6?'Moderate Growth':v<0.8?'Healthy Crop':'Dense Vegetation',
+    classify: v => v<0?'Water / Built-up':v<0.2?'Bare Soil':v<0.4?'Sparse Vegetation':v<0.6?'Moderate Growth':v<0.8?'Healthy Crop':'Dense Vegetation',
     classes: [
-      {range:[-1,  0  ],label:'Water / Non-Veg', color:'#4575b4'},
+      {range:[-1,  0  ],label:'Water',              color:'#4575b4'},
+      {range:[-1,  0  ],label:'Built-up / Non-Veg', color:'#707070'},
       {range:[0,   0.2],label:'Bare Soil',        color:'#d73027'},
       {range:[0.2, 0.4],label:'Sparse Vegetation',color:'#fdae61'},
       {range:[0.4, 0.6],label:'Moderate Growth',  color:'#fee08b'},

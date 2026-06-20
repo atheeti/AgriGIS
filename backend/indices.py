@@ -214,7 +214,13 @@ INDEX_CONFIGS: dict = {
 }
 
 
-def _build_classified_vis(index_image: "ee.Image", cfg: dict) -> "ee.Image":
+BUILTUP_COLOR = "707070"  # matches frontend config.js NDVI "Built-up / Non-Veg" swatch
+
+def _build_classified_vis(
+    index_image: "ee.Image",
+    cfg: dict,
+    water_mask: "ee.Image" = None,
+) -> "ee.Image":
     """
     Buckets the continuous index image into the same discrete classes
     shown in the frontend legend, then returns a renderable image whose
@@ -222,6 +228,13 @@ def _build_classified_vis(index_image: "ee.Image", cfg: dict) -> "ee.Image":
     classification (instead of a continuous gradient) guarantees the
     rendered map tile always agrees with the legend — no two classes
     can blur into each other at a shared boundary.
+
+    NDVI's lowest bucket (value < 0) lumps water and built-up/bare
+    surfaces together, since both can read as near-zero or negative
+    NDVI. When `water_mask` (MNDWI: (Green−SWIR1)/(Green+SWIR1)) is
+    given, that bottom bucket is split using it — true water bodies
+    have MNDWI >= 0, built-up/bare surfaces don't — so built-up no
+    longer renders as "water" on the map.
     """
     breaks  = cfg["class_breaks"]
     palette = cfg["class_palette"]
@@ -229,6 +242,11 @@ def _build_classified_vis(index_image: "ee.Image", cfg: dict) -> "ee.Image":
     class_id = ee.Image.constant(0)
     for b in breaks:
         class_id = class_id.add(index_image.gte(b))
+
+    if water_mask is not None:
+        is_builtup = class_id.eq(0).And(water_mask.lt(0))
+        class_id   = class_id.add(1).where(is_builtup, 0)
+        palette    = [BUILTUP_COLOR] + palette
 
     return class_id.visualize(min=0, max=len(palette) - 1, palette=palette)
 
@@ -420,8 +438,11 @@ def calculate(
     ]
 
     # ── Map tile URL (discrete classification matching the legend) ─
-    map_id   = _build_classified_vis(index_image_vis, cfg).getMapId()
-    tile_url = map_id["tile_fetcher"].url_format
+    # NDVI: disambiguate water vs built-up within the lowest bucket
+    # using MNDWI, so built-up areas stop rendering as "water".
+    water_mask = _mdwi(image).clip(geometry).resample("bilinear") if index_key == "NDVI" else None
+    map_id     = _build_classified_vis(index_image_vis, cfg, water_mask).getMapId()
+    tile_url   = map_id["tile_fetcher"].url_format
     # url_format already contains {z}/{x}/{y} placeholders — ready for Leaflet
 
     # ── Clean up NaN / None ────────────────────────────────────
