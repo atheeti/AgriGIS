@@ -254,7 +254,14 @@ def _build_classified_vis(
         class_id = class_id.add(index_image.gte(b))
 
     if water_mask is not None:
-        is_builtup = class_id.eq(0).And(water_mask.lt(0))
+        # .unmask() guarantees the test below is never itself masked —
+        # ee.Image.where() propagates a masked *test* pixel straight
+        # into the output mask, so a single masked MNDWI pixel (e.g.
+        # at a tile edge or partial-resolution mismatch from the 20 m
+        # SWIR1 band) was silently dropping pixels from the rendered
+        # classification, even though the base NDVI pixel was valid.
+        water_ok   = water_mask.unmask(-1)
+        is_builtup = class_id.eq(0).And(water_ok.lt(0))
         class_id   = class_id.add(1).where(is_builtup, 0)
         palette    = [BUILTUP_COLOR] + palette
 
@@ -449,10 +456,17 @@ def calculate(
 
     # ── Map tile URL (discrete classification matching the legend) ─
     # NDVI: disambiguate water vs built-up within the lowest bucket
-    # using MNDWI, so built-up areas stop rendering as "water".
-    water_mask = _mdwi(image).clip(geometry).resample("bilinear") if index_key == "NDVI" else None
-    map_id     = _build_classified_vis(index_image_vis, cfg, water_mask).getMapId()
-    tile_url   = map_id["tile_fetcher"].url_format
+    # using MNDWI, so built-up areas stop rendering as "water". If the
+    # extra MNDWI computation ever fails (e.g. exotic scene/geometry
+    # combinations), fall back to the plain classification rather than
+    # surfacing a blank map.
+    try:
+        water_mask = _mdwi(image).clip(geometry).resample("bilinear") if index_key == "NDVI" else None
+        map_id     = _build_classified_vis(index_image_vis, cfg, water_mask).getMapId()
+    except Exception:
+        logger.exception(f"[{index_key}] water/built-up split failed — falling back to plain classification")
+        map_id = _build_classified_vis(index_image_vis, cfg).getMapId()
+    tile_url = map_id["tile_fetcher"].url_format
     # url_format already contains {z}/{x}/{y} placeholders — ready for Leaflet
 
     # ── Clean up NaN / None ────────────────────────────────────
