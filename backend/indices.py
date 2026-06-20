@@ -1,7 +1,7 @@
 """
 TerraGIS Backend  |  indices.py
 ──────────────────────────────────────────────────────────────
-All 11 spectral index calculations using Google Earth Engine.
+All 12 spectral index calculations using Google Earth Engine.
 Collection: COPERNICUS/S2_SR_HARMONIZED (10 m, surface reflectance)
 
 Band mapping:
@@ -130,6 +130,10 @@ def _ndwi(img):
     """(Green − NIR) / (Green + NIR)"""
     return img.normalizedDifference(["B3", "B8"]).rename("index")
 
+def _lswi(img):
+    """(NIR − SWIR1) / (NIR + SWIR1)  — canopy / surface water content"""
+    return img.normalizedDifference(["B8", "B11"]).rename("index")
+
 
 # ══════════════════════════════════════════════════════════════
 #  INDEX CONFIGURATION TABLE
@@ -210,6 +214,12 @@ INDEX_CONFIGS: dict = {
         "disp":       (-0.5, 0.5),
         "class_breaks":  [-0.3, 0, 0.2, 0.5],
         "class_palette": ["d7191c", "fdae61", "abd9e9", "2c7bb6", "054e9e"],
+    },
+    "LSWI": {
+        "formula":    _lswi,
+        "disp":       (-0.5, 0.6),
+        "class_breaks":  [-0.2, 0, 0.2, 0.4],
+        "class_palette": ["a52a2a", "deb887", "c7eae5", "35978f", "01665e"],
     },
 }
 

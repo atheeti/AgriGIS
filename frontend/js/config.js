@@ -204,6 +204,22 @@ const INDICES = {
     ],
   },
 
+  LSWI: {
+    full:     'Land Surface Water Index',
+    formula:  '(NIR − SWIR1) / (NIR + SWIR1)',
+    color:    '#26A69A',
+    disp:     [-0.5, 0.6],
+    stops:    ['#a52a2a','#deb887','#f6e8c3','#c7eae5','#80cdc1','#35978f','#01665e'],
+    classify: v => v<-0.2?'Very Dry / Bare':v<0?'Dry Vegetation':v<0.2?'Normal Moisture':v<0.4?'High Moisture':'Flooded / Open Water',
+    classes: [
+      {range:[-1,  -0.2],label:'Very Dry / Bare',       color:'#a52a2a'},
+      {range:[-0.2, 0   ],label:'Dry Vegetation',        color:'#deb887'},
+      {range:[0,    0.2],label:'Normal Moisture',        color:'#c7eae5'},
+      {range:[0.2,  0.4],label:'High Moisture',          color:'#35978f'},
+      {range:[0.4,  1  ],label:'Flooded / Open Water',   color:'#01665e'},
+    ],
+  },
+
 };
 
 // ── COLOUR HELPERS ────────────────────────────────────────────
