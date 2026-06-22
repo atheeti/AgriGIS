@@ -230,6 +230,7 @@ def _build_classified_vis(
     index_image: "ee.Image",
     cfg: dict,
     water_mask: "ee.Image" = None,
+    geometry: "ee.Geometry" = None,
 ) -> "ee.Image":
     """
     Buckets the continuous index image into the same discrete classes
@@ -264,6 +265,23 @@ def _build_classified_vis(
         is_builtup = class_id.eq(0).And(water_ok.lt(0))
         class_id   = class_id.add(1).where(is_builtup, 0)
         palette    = [BUILTUP_COLOR] + palette
+
+    # Hard guarantee against any remaining blank/transparent gaps (e.g. a
+    # genuine no-data hole even after mosaicking several recent scenes).
+    # reduceRegion()-based stats average only over whatever pixels ARE
+    # valid, so they can look perfectly normal even when large parts of
+    # the AOI are masked — the map tile is the only place that gap is
+    # visible. Filling it with an explicit "No Data" colour means the
+    # rendered map is never just blank/see-through basemap.
+    # unmask() removes ALL masking (including the boundary outside the
+    # AOI), so we re-clip to `geometry` afterwards — otherwise the
+    # "No Data" fill would bleed across the entire world tile instead of
+    # staying confined to the drawn plot.
+    NODATA_COLOR = "999999"
+    class_id = class_id.unmask(len(palette))
+    if geometry is not None:
+        class_id = class_id.clip(geometry)
+    palette  = palette + [NODATA_COLOR]
 
     return class_id.visualize(min=0, max=len(palette) - 1, palette=palette)
 
@@ -491,19 +509,23 @@ def calculate(
     # surfacing a blank map.
     try:
         water_mask = _mdwi(image).clip(geometry).resample("bilinear") if index_key == "NDVI" else None
-        map_id     = _build_classified_vis(index_image_vis, cfg, water_mask).getMapId()
+        map_id     = _build_classified_vis(index_image_vis, cfg, water_mask, geometry).getMapId()
     except Exception:
         logger.exception(f"[{index_key}] water/built-up split failed — falling back to plain classification")
         try:
-            map_id = _build_classified_vis(index_image_vis, cfg).getMapId()
+            map_id = _build_classified_vis(index_image_vis, cfg, geometry=geometry).getMapId()
         except Exception:
             # Last-resort fallback: render the raw continuous index with a
             # simple linear stretch so the map is NEVER left blank, even if
             # the discrete classification pipeline itself is broken.
             logger.exception(f"[{index_key}] plain classification also failed — falling back to continuous stretch")
-            map_id = index_image_vis.visualize(
-                min=dmin, max=dmax, palette=cfg["class_palette"]
-            ).getMapId()
+            map_id = (
+                index_image_vis
+                .unmask((dmin + dmax) / 2)
+                .clip(geometry)
+                .visualize(min=dmin, max=dmax, palette=cfg["class_palette"])
+                .getMapId()
+            )
     tile_url = map_id["tile_fetcher"].url_format
     # url_format already contains {z}/{x}/{y} placeholders — ready for Leaflet
 
