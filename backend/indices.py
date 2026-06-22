@@ -383,9 +383,20 @@ def _select_scene(geometry: "ee.Geometry", label: str = ""):
             break
 
     if image is None:
-        image      = ee.Image(candidate_list.get(0))
+        # No single pass fully covers the plot — this happens at Sentinel-2
+        # swath/granule edges, where one half of the AOI falls on a
+        # different orbit track or was cloud-masked on the latest pass.
+        # Using "the newest scene anyway" would leave the uncovered half
+        # of the map blank (showing the basemap through). Instead, mosaic
+        # the recent scenes together (newest pixel wins wherever available,
+        # older passes fill in the gaps) so the whole AOI renders.
+        mosaic_candidates = collection.limit(CANDIDATE_LIMIT)
+        image      = mosaic_candidates.mosaic().clip(geometry)
         scene_date = candidate_info[0]["properties"]["date"]
-        logger.warning(f"[{label}] No scene reached {MIN_COVERAGE_FRACTION:.0%} AOI coverage; using newest available.")
+        logger.warning(
+            f"[{label}] No single scene reached {MIN_COVERAGE_FRACTION:.0%} AOI coverage; "
+            f"using a mosaic of the {n_candidates} most recent scenes instead."
+        )
 
     return image, scene_date, image_count
 
