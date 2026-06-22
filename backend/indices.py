@@ -412,7 +412,21 @@ def _select_scene(geometry: "ee.Geometry", label: str = ""):
     # coverage, and older passes silently fill any remaining gaps (e.g.
     # a Sentinel-2 swath/granule edge or a cloud-masked corner) instead
     # of leaving them blank with the basemap showing through.
-    image = collection.limit(CANDIDATE_LIMIT).mosaic().clip(geometry)
+    #
+    # IMPORTANT: a mosaic spanning more than one source scene can mix
+    # different UTM projections (e.g. two adjacent MGRS tiles). Any later
+    # .resample() call needs ONE fixed projection to interpolate against —
+    # without it, the resample silently produces a fully masked image at
+    # render time (stats still look fine, since reduceRegion() doesn't
+    # need a fixed projection, but the map tile renders entirely blank/
+    # "No Data"). Reprojecting onto the newest scene's native projection
+    # here fixes that for every downstream consumer of `image`.
+    native_projection = collection.first().select(0).projection()
+    image = (
+        collection.limit(CANDIDATE_LIMIT).mosaic()
+        .reproject(native_projection)
+        .clip(geometry)
+    )
 
     if best_coverage < 1.0:
         logger.info(
