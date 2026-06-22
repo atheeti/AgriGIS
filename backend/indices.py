@@ -387,21 +387,14 @@ def _select_scene(geometry: "ee.Geometry", label: str = ""):
     if scene_date is None:
         scene_date = candidate_info[0]["properties"]["date"]
 
-    # Always mosaic the recent scenes on top of (or instead of) the best
-    # single pass, newest-first. Even a scene that clears the 60% coverage
-    # bar can still leave a sliver of the AOI uncovered — e.g. at a
-    # Sentinel-2 swath/granule edge or a cloud-masked corner — which would
-    # otherwise render as a blank gap with the basemap showing through.
-    # Mosaicking guarantees the WHOLE plot renders: the newest available
-    # pixel wins everywhere, and older passes silently fill any gaps.
-    mosaic_source = collection.limit(CANDIDATE_LIMIT)
-    if image is not None:
-        # Put the chosen best scene first so its pixels always win, then
-        # fall through to the rest of the recent collection for gap-fill.
-        mosaic_source = ee.ImageCollection(
-            ee.List([image]).cat(mosaic_source.toList(CANDIDATE_LIMIT))
-        )
-    image = mosaic_source.mosaic().clip(geometry)
+    # Always mosaic the recent scenes to guarantee the WHOLE plot renders.
+    # `collection` is already sorted newest-first, so .mosaic() naturally
+    # takes each pixel from the newest scene that has an unmasked value
+    # there — the same "best" scene found above wins everywhere it has
+    # coverage, and older passes silently fill any remaining gaps (e.g.
+    # a Sentinel-2 swath/granule edge or a cloud-masked corner) instead
+    # of leaving them blank with the basemap showing through.
+    image = collection.limit(CANDIDATE_LIMIT).mosaic().clip(geometry)
 
     if best_coverage < 1.0:
         logger.info(
