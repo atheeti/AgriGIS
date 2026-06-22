@@ -242,7 +242,9 @@ const DrawModule = (() => {
     stopCrossSectionDraw();
     clearCrossSectionLine();
     _drawnItems?.clearLayers();
-    if (AppState.overlayLayer) { AppState.map.removeLayer(AppState.overlayLayer); AppState.overlayLayer = null; }
+    if (AppState.overlayLayer)    { AppState.map.removeLayer(AppState.overlayLayer);    AppState.overlayLayer    = null; }
+    if (AppState.trueColorLayer)  { AppState.map.removeLayer(AppState.trueColorLayer);  AppState.trueColorLayer  = null; }
+    if (AppState.falseColorLayer) { AppState.map.removeLayer(AppState.falseColorLayer); AppState.falseColorLayer = null; }
     AppState.drawnLayer = AppState.selectedIndex = AppState.lastResult = null;
     AppState.lastAreaM2 = null;
 
@@ -306,6 +308,55 @@ const DrawModule = (() => {
     }
   }
 
+  // ── TRUE / FALSE COLOUR GROUND-TRUTH LAYERS ───────────────
+  // Stored on AppState so other modules (api.js) can clear/inspect them.
+  // Both start hidden (off) — user opts in via the legend toggles.
+  function renderGroundTruthLayers(trueColorUrl, falseColorUrl) {
+    if (AppState.trueColorLayer)  { AppState.map.removeLayer(AppState.trueColorLayer);  AppState.trueColorLayer  = null; }
+    if (AppState.falseColorLayer) { AppState.map.removeLayer(AppState.falseColorLayer); AppState.falseColorLayer = null; }
+
+    if (trueColorUrl) {
+      AppState.trueColorLayer = L.tileLayer(trueColorUrl, {
+        maxZoom: 21,
+        attribution: 'Google Earth Engine / Sentinel-2 (True Colour)',
+      });
+    }
+    if (falseColorUrl) {
+      AppState.falseColorLayer = L.tileLayer(falseColorUrl, {
+        maxZoom: 21,
+        attribution: 'Google Earth Engine / Sentinel-2 (False Colour)',
+      });
+    }
+    // Both layers stay off the map until explicitly toggled on.
+  }
+
+  function setTrueColorVisible(visible) {
+    if (!AppState.trueColorLayer) return;
+    if (visible) {
+      // Mutually exclusive with false colour — only one composite at a time.
+      if (AppState.falseColorLayer && AppState.map.hasLayer(AppState.falseColorLayer)) {
+        AppState.map.removeLayer(AppState.falseColorLayer);
+      }
+      if (!AppState.map.hasLayer(AppState.trueColorLayer)) AppState.trueColorLayer.addTo(AppState.map);
+      AppState.trueColorLayer.bringToBack();
+    } else {
+      AppState.map.removeLayer(AppState.trueColorLayer);
+    }
+  }
+
+  function setFalseColorVisible(visible) {
+    if (!AppState.falseColorLayer) return;
+    if (visible) {
+      if (AppState.trueColorLayer && AppState.map.hasLayer(AppState.trueColorLayer)) {
+        AppState.map.removeLayer(AppState.trueColorLayer);
+      }
+      if (!AppState.map.hasLayer(AppState.falseColorLayer)) AppState.falseColorLayer.addTo(AppState.map);
+      AppState.falseColorLayer.bringToBack();
+    } else {
+      AppState.map.removeLayer(AppState.falseColorLayer);
+    }
+  }
+
   // ── CROSS-SECTION LINE TOOL ────────────────────────────────
   function startCrossSectionDraw() {
     _deactivateAll();
@@ -365,6 +416,7 @@ const DrawModule = (() => {
   return {
     init, activate, clearAll, renderGEETileOverlay, getGeoJSONGeometry,
     toggleEdit, setOverlayOpacity, setOverlayVisible,
+    renderGroundTruthLayers, setTrueColorVisible, setFalseColorVisible,
     startCrossSectionDraw, stopCrossSectionDraw, clearCrossSectionLine, getLineCoords,
     showXsectionMarker, hideXsectionMarker, refreshAreaDisplay,
   };

@@ -268,6 +268,18 @@ def _build_classified_vis(
     return class_id.visualize(min=0, max=len(palette) - 1, palette=palette)
 
 
+# ── TRUE / FALSE COLOUR COMPOSITES (ground-truthing) ────────────
+# True colour:  B4/B3/B2 (Red/Green/Blue)   — looks like a normal photo
+# False colour: B8/B4/B3 (NIR/Red/Green)    — healthy vegetation glows red
+COMPOSITE_STRETCH = (0, 3000)  # typical S2 SR reflectance display range
+
+def _build_composite_tile_url(image: "ee.Image", geometry: "ee.Geometry", bands: list) -> str:
+    """Renders a 3-band RGB composite (true or false colour) and returns its tile URL."""
+    lo, hi = COMPOSITE_STRETCH
+    vis = image.clip(geometry).visualize(bands=bands, min=lo, max=hi)
+    return vis.getMapId()["tile_fetcher"].url_format
+
+
 # ══════════════════════════════════════════════════════════════
 #  MAIN CALCULATION FUNCTION
 # ══════════════════════════════════════════════════════════════
@@ -395,6 +407,8 @@ def calculate(
           mean, min, max, std,       — float statistics
           scene_date,                — "DD Mon YYYY"
           tile_url,                  — Leaflet-compatible URL from GEE
+          true_color_url,            — RGB (B4/B3/B2) composite tile URL
+          false_color_url,           — NIR/Red/Green (B8/B4/B3) composite tile URL
           histogram,                 — [{center, count}, …]  20 bins
           image_count,               — number of scenes found
         }
@@ -469,6 +483,16 @@ def calculate(
     tile_url = map_id["tile_fetcher"].url_format
     # url_format already contains {z}/{x}/{y} placeholders — ready for Leaflet
 
+    # ── True / false colour composites for ground-truthing ─────
+    # Rendered from the same selected scene so they line up exactly
+    # with the classification overlay above.
+    try:
+        true_color_url  = _build_composite_tile_url(image, geometry, ["B4", "B3", "B2"])
+        false_color_url = _build_composite_tile_url(image, geometry, ["B8", "B4", "B3"])
+    except Exception:
+        logger.exception(f"[{index_key}] composite tile generation failed")
+        true_color_url = false_color_url = None
+
     # ── Clean up NaN / None ────────────────────────────────────
     def _safe(v, default=0.0) -> float:
         if v is None:
@@ -485,7 +509,9 @@ def calculate(
         "max":         _safe(stats_raw.get("index_max")),
         "std":         _safe(stats_raw.get("index_stdDev")),
         "scene_date":  scene_date,
-        "tile_url":    tile_url,
+        "tile_url":         tile_url,
+        "true_color_url":   true_color_url,
+        "false_color_url":  false_color_url,
         "histogram":   histogram,
         "image_count": image_count,
     }

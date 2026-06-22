@@ -4,7 +4,7 @@ Pydantic models for request validation and response serialisation.
 """
 
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class CalculateRequest(BaseModel):
@@ -53,5 +53,7 @@ class CalculateResponse(BaseModel):
     std:          float
     scene_date:   str
     tile_url:     str
+    true_color_url:  Optional[str] = None
+    false_color_url: Optional[str] = None
     histogram:    List[HistogramBin]
     image_count:  int

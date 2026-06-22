@@ -250,6 +250,21 @@
             <span><i class="fas fa-layer-group"></i> Show Classification Layer</span>
           </label>
         </div>
+        <!-- Ground-truthing: Sentinel-2 true/false colour composites -->
+        <div class="layer-toggle-row">
+          <label class="layer-toggle">
+            <input type="checkbox" id="layer-true-color-toggle"
+                   onchange="UIModule.toggleTrueColor(this.checked)"/>
+            <span><i class="fas fa-image"></i> True Colour Composite</span>
+          </label>
+        </div>
+        <div class="layer-toggle-row">
+          <label class="layer-toggle">
+            <input type="checkbox" id="layer-false-color-toggle"
+                   onchange="UIModule.toggleFalseColor(this.checked)"/>
+            <span><i class="fas fa-image"></i> False Colour Composite</span>
+          </label>
+        </div>
 
         <div class="legend-bar-wrap">
           <div class="legend-gradient-bar" id="legend-gradient-bar"></div>

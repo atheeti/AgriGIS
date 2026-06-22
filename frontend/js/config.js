@@ -17,6 +17,8 @@ const AppState = {
   map:           null,   // Leaflet map instance
   drawnLayer:    null,   // Currently drawn polygon/circle/rectangle
   overlayLayer:  null,   // GEE tile layer currently shown on map
+  trueColorLayer:  null, // Sentinel-2 true-colour composite tile layer (ground-truthing)
+  falseColorLayer: null, // Sentinel-2 false-colour composite tile layer (ground-truthing)
   selectedIndex: null,   // e.g. 'NDVI'
   lastResult:    null,   // Last /api/calculate response + display cfg
   lastCrossSection: null, // Last /api/cross-section response (for PDF report)

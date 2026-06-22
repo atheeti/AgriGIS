@@ -96,6 +96,10 @@ const UIModule = (() => {
     // Reset the layer-visibility checkbox + cross-section panel for the new result
     const layerToggle = document.getElementById('layer-visible-toggle');
     if (layerToggle) layerToggle.checked = true;
+    const tcToggle = document.getElementById('layer-true-color-toggle');
+    if (tcToggle) tcToggle.checked = false;
+    const fcToggle = document.getElementById('layer-false-color-toggle');
+    if (fcToggle) fcToggle.checked = false;
     clearCrossSection();
 
     _buildLegend(cfg, result.mean);
@@ -492,6 +496,26 @@ ${xsSection}
     showToast(visible ? 'Classification layer shown' : 'Classification layer hidden', 'info');
   }
 
+  // ── TRUE / FALSE COLOUR GROUND-TRUTH TOGGLES ───────────────
+  // Mutually exclusive in DrawModule — switching one off the other's checkbox.
+  function toggleTrueColor(visible) {
+    DrawModule.setTrueColorVisible(visible);
+    if (visible) {
+      const fc = document.getElementById('layer-false-color-toggle');
+      if (fc) fc.checked = false;
+    }
+    showToast(visible ? 'True colour composite shown' : 'True colour composite hidden', 'info');
+  }
+
+  function toggleFalseColor(visible) {
+    DrawModule.setFalseColorVisible(visible);
+    if (visible) {
+      const tc = document.getElementById('layer-true-color-toggle');
+      if (tc) tc.checked = false;
+    }
+    showToast(visible ? 'False colour composite shown' : 'False colour composite hidden', 'info');
+  }
+
   // ── CROSS SECTION ANALYSIS ────────────────────────────────
   function toggleCrossSectionDraw() {
     const btn = document.getElementById('btn-draw-xsection');
@@ -713,6 +737,7 @@ ${xsSection}
     showSection, hideSection, setStepChip,
     downloadReport, downloadPlotJPG, updateScaleBar,
     toggleEditShape, setOverlayOpacity, toggleLayerVisible,
+    toggleTrueColor, toggleFalseColor,
     toggleCrossSectionDraw, onCrossSectionLineDrawn, clearCrossSection, showCrossSectionChart,
     zoomCrossSection, toggleStatsMenu, exportCrossSection,
   };

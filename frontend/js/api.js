@@ -68,13 +68,16 @@ const ApiModule = (() => {
       }
 
       const data = await res.json();
-      // data = { mean, min, max, std, scene_date, tile_url, histogram, image_count }
+      // data = { mean, min, max, std, scene_date, tile_url, true_color_url, false_color_url, histogram, image_count }
 
       // Save result to shared state
       AppState.lastResult = { key, cfg, ...data };
 
       // Render the GEE classification tile overlay on the map
       DrawModule.renderGEETileOverlay(data.tile_url);
+
+      // Build (but keep hidden) the true/false colour ground-truth layers
+      DrawModule.renderGroundTruthLayers(data.true_color_url, data.false_color_url);
 
       // Update header scene date (date only — no satellite name prefix)
       document.getElementById('sentinel-date-display').textContent = data.scene_date;
