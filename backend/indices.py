@@ -445,11 +445,17 @@ def calculate(
     image, scene_date, image_count = _select_scene(geometry, label=index_key)
 
     # ── Index computation ──────────────────────────────────────
-    # .resample('bilinear') smooths pixel-to-pixel transitions in the
-    # rendered tile (sharper-looking map) without altering the native
-    # 10 m statistics, which are still reduced from the unresampled image.
+    # NOTE: classification tiles are rendered straight off the native
+    # 10 m pixels (no .resample()). Bilinear resampling was tried here
+    # to smooth the rendered tile, but it has repeatedly caused the
+    # classification to render fully/partially blank or grey ("No
+    # Data") at render time even while reduceRegion()-based stats
+    # stayed completely normal — resample() needs a single well-defined
+    # projection to interpolate against, and silently fails closed
+    # (fully masked output) whenever that's not satisfied. Discrete
+    # classification doesn't need smoothing anyway, so we just drop it.
     index_image = cfg["formula"](image).clip(geometry)
-    index_image_vis = index_image.resample("bilinear")
+    index_image_vis = index_image
 
     # ── Statistics (combined reducer → one server roundtrip) ───
     stats_raw = index_image.reduceRegion(
@@ -493,7 +499,7 @@ def calculate(
     # combinations), fall back to the plain classification rather than
     # surfacing a blank map.
     try:
-        water_mask = _mdwi(image).clip(geometry).resample("bilinear") if index_key == "NDVI" else None
+        water_mask = _mdwi(image).clip(geometry) if index_key == "NDVI" else None
         map_id     = _build_classified_vis(index_image_vis, cfg, water_mask, geometry).getMapId()
     except Exception:
         logger.exception(f"[{index_key}] water/built-up split failed — falling back to plain classification")
