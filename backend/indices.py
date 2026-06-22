@@ -479,7 +479,16 @@ def calculate(
         map_id     = _build_classified_vis(index_image_vis, cfg, water_mask).getMapId()
     except Exception:
         logger.exception(f"[{index_key}] water/built-up split failed — falling back to plain classification")
-        map_id = _build_classified_vis(index_image_vis, cfg).getMapId()
+        try:
+            map_id = _build_classified_vis(index_image_vis, cfg).getMapId()
+        except Exception:
+            # Last-resort fallback: render the raw continuous index with a
+            # simple linear stretch so the map is NEVER left blank, even if
+            # the discrete classification pipeline itself is broken.
+            logger.exception(f"[{index_key}] plain classification also failed — falling back to continuous stretch")
+            map_id = index_image_vis.visualize(
+                min=dmin, max=dmax, palette=cfg["class_palette"]
+            ).getMapId()
     tile_url = map_id["tile_fetcher"].url_format
     # url_format already contains {z}/{x}/{y} placeholders — ready for Leaflet
 

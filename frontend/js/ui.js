@@ -586,6 +586,10 @@ ${xsSection}
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        // mode:'index' + intersect:false → hovering ANYWHERE along the x-axis
+        // (not just exactly on a point) fires onHover, so the map marker
+        // tracks the cursor smoothly as it scrolls across the chart.
+        interaction: { mode: 'index', intersect: false },
         // Move a marker along the drawn cross-section line as the user
         // hovers/scrolls through the chart's sampled points.
         onHover: (evt, activeElements) => {

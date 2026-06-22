@@ -330,6 +330,11 @@ const DrawModule = (() => {
     // Both layers stay off the map until explicitly toggled on.
   }
 
+  // NOTE: composite layers must NOT use bringToBack() — that sends them
+  // below the basemap's own tile layer (which is opaque), making them
+  // invisible no matter how "on" the toggle is. Instead we add them on
+  // top, then re-assert the classification overlay's z-order above them
+  // so it still wins if a user enables both at once.
   function setTrueColorVisible(visible) {
     if (!AppState.trueColorLayer) return;
     if (visible) {
@@ -338,7 +343,9 @@ const DrawModule = (() => {
         AppState.map.removeLayer(AppState.falseColorLayer);
       }
       if (!AppState.map.hasLayer(AppState.trueColorLayer)) AppState.trueColorLayer.addTo(AppState.map);
-      AppState.trueColorLayer.bringToBack();
+      AppState.trueColorLayer.bringToFront();
+      AppState.overlayLayer?.bringToFront();
+      if (AppState.drawnLayer?.bringToFront) AppState.drawnLayer.bringToFront();
     } else {
       AppState.map.removeLayer(AppState.trueColorLayer);
     }
@@ -351,7 +358,9 @@ const DrawModule = (() => {
         AppState.map.removeLayer(AppState.trueColorLayer);
       }
       if (!AppState.map.hasLayer(AppState.falseColorLayer)) AppState.falseColorLayer.addTo(AppState.map);
-      AppState.falseColorLayer.bringToBack();
+      AppState.falseColorLayer.bringToFront();
+      AppState.overlayLayer?.bringToFront();
+      if (AppState.drawnLayer?.bringToFront) AppState.drawnLayer.bringToFront();
     } else {
       AppState.map.removeLayer(AppState.falseColorLayer);
     }
