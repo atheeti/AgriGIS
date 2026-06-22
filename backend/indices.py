@@ -391,48 +391,19 @@ def _select_scene(geometry: "ee.Geometry", label: str = ""):
 
     image      = None
     scene_date = None
-    best_coverage = 0.0
     for i, feat in enumerate(candidate_info):
         props         = feat["properties"]
         coverage_frac = props["coverage"] or 0.0
         if coverage_frac >= MIN_COVERAGE_FRACTION:
-            image         = ee.Image(candidate_list.get(i))
-            scene_date    = props["date"]
-            best_coverage = coverage_frac
-            logger.info(f"[{label}] Best single scene {i} — AOI coverage {coverage_frac:.0%}")
+            image      = ee.Image(candidate_list.get(i))
+            scene_date = props["date"]
+            logger.info(f"[{label}] Using scene {i} — AOI coverage {coverage_frac:.0%}")
             break
 
-    if scene_date is None:
+    if image is None:
+        image      = ee.Image(candidate_list.get(0))
         scene_date = candidate_info[0]["properties"]["date"]
-
-    # Always mosaic the recent scenes to guarantee the WHOLE plot renders.
-    # `collection` is already sorted newest-first, so .mosaic() naturally
-    # takes each pixel from the newest scene that has an unmasked value
-    # there — the same "best" scene found above wins everywhere it has
-    # coverage, and older passes silently fill any remaining gaps (e.g.
-    # a Sentinel-2 swath/granule edge or a cloud-masked corner) instead
-    # of leaving them blank with the basemap showing through.
-    #
-    # IMPORTANT: a mosaic spanning more than one source scene can mix
-    # different UTM projections (e.g. two adjacent MGRS tiles). Any later
-    # .resample() call needs ONE fixed projection to interpolate against —
-    # without it, the resample silently produces a fully masked image at
-    # render time (stats still look fine, since reduceRegion() doesn't
-    # need a fixed projection, but the map tile renders entirely blank/
-    # "No Data"). Reprojecting onto the newest scene's native projection
-    # here fixes that for every downstream consumer of `image`.
-    native_projection = collection.first().select(0).projection()
-    image = (
-        collection.limit(CANDIDATE_LIMIT).mosaic()
-        .reproject(native_projection)
-        .clip(geometry)
-    )
-
-    if best_coverage < 1.0:
-        logger.info(
-            f"[{label}] Mosaicked up to {n_candidates} recent scenes to guarantee full AOI coverage "
-            f"(best single-scene coverage was {best_coverage:.0%})."
-        )
+        logger.warning(f"[{label}] No scene reached {MIN_COVERAGE_FRACTION:.0%} AOI coverage; using newest available.")
 
     return image, scene_date, image_count
 
