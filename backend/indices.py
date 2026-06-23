@@ -457,6 +457,28 @@ def calculate(
     index_image = cfg["formula"](image).clip(geometry)
     index_image_vis = index_image
 
+    # ── Diagnostics: raw surface-reflectance band means over the AOI ──
+    # Logged so an apparently-wrong classification (e.g. low NDVI over
+    # visibly dense canopy) can be root-caused from real numbers — a
+    # low NIR mean with a normal Red mean points at a masking/band
+    # bug, not a seasonal/lighting effect, and vice versa.
+    try:
+        band_means = (
+            image.select(["B2", "B3", "B4", "B8", "B11"])
+            .clip(geometry)
+            .reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=geometry,
+                scale=10,
+                bestEffort=True,
+                maxPixels=1e10,
+            )
+            .getInfo()
+        )
+        logger.info(f"[{index_key}] Raw band means (SR DN, ×0.0001=reflectance) over AOI: {band_means}")
+    except Exception:
+        logger.exception(f"[{index_key}] band-mean diagnostic failed")
+
     # ── Statistics (combined reducer → one server roundtrip) ───
     stats_raw = index_image.reduceRegion(
         reducer=(
