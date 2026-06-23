@@ -23,9 +23,12 @@ from datetime import datetime, timezone, timedelta
 logger = logging.getLogger("terragis.indices")
 
 # Fixed acquisition constraints — no longer user-configurable from the UI.
-# We always take the most recent Sentinel-2 scene with <=5% cloud cover,
-# searching back far enough that one is virtually always available.
-MAX_CLOUD_PERCENT  = 5
+# We always take the most recent Sentinel-2 scene with <=10% cloud cover,
+# searching back far enough that one is virtually always available. A
+# tighter <5% cutoff was skipping recent, only-slightly-cloudy scenes and
+# falling back to noticeably older ones — 10% still excludes meaningfully
+# cloudy scenes while favouring the most recent available imagery.
+MAX_CLOUD_PERCENT  = 10
 SEARCH_WINDOW_DAYS = 90
 
 
@@ -117,8 +120,8 @@ def _sipi(img):
     return num.divide(den).rename("index")
 
 def _nbr(img):
-    """(NIR − SWIR2) / (NIR + SWIR2)  uses B8A + B12"""
-    return img.normalizedDifference(["B8A", "B12"]).rename("index")
+    """(NIR − SWIR2) / (NIR + SWIR2)  — standard NBR uses B8 (NIR), not B8A (RedEdge)"""
+    return img.normalizedDifference(["B8", "B12"]).rename("index")
 
 def _mgrvi(img):
     """(Green² − Red²) / (Green² + Red²)  — scale² cancels"""
