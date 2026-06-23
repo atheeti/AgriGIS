@@ -314,6 +314,7 @@ const DrawModule = (() => {
   function renderGroundTruthLayers(trueColorUrl, falseColorUrl) {
     if (AppState.trueColorLayer)  { AppState.map.removeLayer(AppState.trueColorLayer);  AppState.trueColorLayer  = null; }
     if (AppState.falseColorLayer) { AppState.map.removeLayer(AppState.falseColorLayer); AppState.falseColorLayer = null; }
+    MapModule.setBasemapOpacity(1); // reset dimming from any previous AOI's composite toggle
 
     if (trueColorUrl) {
       AppState.trueColorLayer = L.tileLayer(trueColorUrl, {
@@ -346,8 +347,10 @@ const DrawModule = (() => {
       AppState.trueColorLayer.bringToFront();
       AppState.overlayLayer?.bringToFront();
       if (AppState.drawnLayer?.bringToFront) AppState.drawnLayer.bringToFront();
+      MapModule.setBasemapOpacity(0.15);
     } else {
       AppState.map.removeLayer(AppState.trueColorLayer);
+      _restoreBasemapIfNoComposite();
     }
   }
 
@@ -361,9 +364,19 @@ const DrawModule = (() => {
       AppState.falseColorLayer.bringToFront();
       AppState.overlayLayer?.bringToFront();
       if (AppState.drawnLayer?.bringToFront) AppState.drawnLayer.bringToFront();
+      MapModule.setBasemapOpacity(0.15);
     } else {
       AppState.map.removeLayer(AppState.falseColorLayer);
+      _restoreBasemapIfNoComposite();
     }
+  }
+
+  // Only restore full basemap opacity once neither composite is showing —
+  // toggling true→false colour (or vice versa) should keep it dimmed.
+  function _restoreBasemapIfNoComposite() {
+    const trueShown  = AppState.trueColorLayer  && AppState.map.hasLayer(AppState.trueColorLayer);
+    const falseShown = AppState.falseColorLayer && AppState.map.hasLayer(AppState.falseColorLayer);
+    if (!trueShown && !falseShown) MapModule.setBasemapOpacity(1);
   }
 
   // ── CROSS-SECTION LINE TOOL ────────────────────────────────

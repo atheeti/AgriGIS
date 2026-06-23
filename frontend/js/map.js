@@ -84,7 +84,15 @@ const MapModule = (() => {
     );
   }
 
-  return { init, setTile };
+  // ── BASEMAP OPACITY ───────────────────────────────────────
+  // Dimmed while a Sentinel-2 true/false-colour composite is shown, so the
+  // two image sources (different sensor/date) don't visually clash at the
+  // AOI boundary — restored to full opacity once both composites are hidden.
+  function setBasemapOpacity(value) {
+    TILES[currentTile].setOpacity(value);
+  }
+
+  return { init, setTile, setBasemapOpacity };
 })();
 
 
