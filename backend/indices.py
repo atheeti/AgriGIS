@@ -261,8 +261,20 @@ def _build_classified_vis(
         # at a tile edge or partial-resolution mismatch from the 20 m
         # SWIR1 band) was silently dropping pixels from the rendered
         # classification, even though the base NDVI pixel was valid.
-        water_ok   = water_mask.unmask(-1)
-        is_builtup = class_id.eq(0).And(water_ok.lt(0))
+        water_ok = water_mask.unmask(-1)
+        is_water = water_ok.gte(0)
+
+        # NDVI = (NIR-Red)/(NIR+Red) can come back fully masked over
+        # very dark/clear water, where both bands are near-zero and the
+        # division is ~0/0 — losing the pixel before it's ever bucketed,
+        # even though MNDWI (Green/SWIR1) stays well-defined there. That
+        # left ponds/lakes rendering as solid grey "No Data" instead of
+        # water. Recover those pixels into the lowest bucket using MNDWI
+        # alone (ee.Image.where keeps `value`'s mask wherever its test is
+        # true, so this unmasks them) before the built-up split below.
+        class_id = class_id.where(is_water, ee.Image.constant(0))
+
+        is_builtup = class_id.eq(0).And(is_water.Not())
         class_id   = class_id.add(1).where(is_builtup, 0)
         palette    = [BUILTUP_COLOR] + palette
 
