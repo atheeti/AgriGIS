@@ -304,12 +304,36 @@ def _build_classified_vis(
 # ── TRUE / FALSE COLOUR COMPOSITES (ground-truthing) ────────────
 # True colour:  B4/B3/B2 (Red/Green/Blue)   — looks like a normal photo
 # False colour: B8/B4/B3 (NIR/Red/Green)    — healthy vegetation glows red
-COMPOSITE_STRETCH = (0, 3000)  # typical S2 SR reflectance display range
+COMPOSITE_STRETCH_FALLBACK = (0, 3000)  # used only if the percentile stretch below fails
 
 def _build_composite_tile_url(image: "ee.Image", geometry: "ee.Geometry", bands: list) -> str:
-    """Renders a 3-band RGB composite (true or false colour) and returns its tile URL."""
-    lo, hi = COMPOSITE_STRETCH
-    vis = image.clip(geometry).visualize(bands=bands, min=lo, max=hi)
+    """
+    Renders a 3-band RGB composite (true or false colour) and returns its
+    tile URL. Uses a per-scene 2nd/98th-percentile stretch (computed from
+    the actual AOI pixels) rather than a fixed display range — a fixed
+    range like (0, 3000) looks washed-out/dull whenever a scene's real
+    reflectance doesn't happen to fill that range, which is most scenes.
+    This is the same percentile-stretch approach tools like the Copernicus
+    Browser use for a natural-looking "true colour" render.
+    """
+    clipped = image.clip(geometry)
+    try:
+        percentiles = clipped.select(bands).reduceRegion(
+            reducer=ee.Reducer.percentile([2, 98]),
+            geometry=geometry,
+            scale=10,
+            bestEffort=True,
+            maxPixels=1e10,
+        ).getInfo()
+        los = [percentiles[f"{b}_p2"] for b in bands]
+        his = [percentiles[f"{b}_p98"] for b in bands]
+        if any(v is None for v in los + his) or any(h <= l for l, h in zip(los, his)):
+            raise ValueError("degenerate percentile stretch")
+        vis = clipped.visualize(bands=bands, min=los, max=his)
+    except Exception:
+        logger.exception("Per-scene percentile stretch failed — falling back to fixed display range")
+        lo, hi = COMPOSITE_STRETCH_FALLBACK
+        vis = clipped.visualize(bands=bands, min=lo, max=hi)
     return vis.getMapId()["tile_fetcher"].url_format
 
 
